@@ -7,6 +7,7 @@ import PyKDL as KDL
 import rospkg
 import rospy
 from std_msgs.msg import String, Float64, Float64MultiArray
+from irl_robots.msg import ur5Control
 from sensor_msgs.msg import JointState, Joy
 import threading
 import os
@@ -27,6 +28,11 @@ class Custom_UR5_KDL:
         
         self.joint_state_msg = JointState()
         self.joy_msg      = Joy()
+        self.ur5_control_msg = ur5Control()
+        self.ur5_control_msg.command = "movej"
+        self.ur5_control_msg.acceleration = 1.57
+        self.ur5_control_msg.velocity = 1.57
+        self.ur5_control_msg.jointcontrol = True
         
         # ds4 key mapper
         self.ds4_mapper = DS4_Mapper()
@@ -55,6 +61,9 @@ class Custom_UR5_KDL:
         
         
         self.ur5_joint_publisher = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
+        self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
+        self.pub_real_ur5 = False
+        
         rospy.Subscriber("/joint_states",JointState,self.joint_state_callback,buff_size=1)
         rospy.Subscriber("/joy",Joy,self.joy_callback)
         rospy.sleep(init_delay)
@@ -105,8 +114,14 @@ class Custom_UR5_KDL:
         self.ur5_ik_solver.CartToJnt(kdl_init_joints, kdl_goal_frame, kdl_goal_joints)
         return kdl_goal_joints
         
-    def ur5_publisher(self, joints, delay=0.1):
+    def ur5_publisher(self, joints, delay=0.1, traj_time = 1):
         # while not rospy.is_shutdown() and not np.allclose(joints,self.joint_state_msg.position,atol=1e-3):
+        if self.pub_real_ur5:
+            print("!!!!!!!\n Publishing on real ur5 robot!!!!!")
+            self.ur5_control_msg.values = joints
+            self.ur5_control_msg.time = traj_time
+            self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+            
         for i, publisher in enumerate(self.ur5_joint_publisher):
             publisher.publish(joints[i])
         return 
@@ -148,6 +163,18 @@ class Custom_UR5_KDL:
             self.pitch = np.pi 
             self.yaw   = 0.0 
         
+        if self.joy_msg.buttons[self.ds4_mapper.l1] == 1 and self.joy_msg.buttons[self.ds4_mapper.r1] == 1:
+            if self.pub_real_ur5:
+                self.pub_real_ur5 = False
+            else:
+                self.pub_real_ur5 = True
+            print("Real robot control {}".format(self.pub_real_ur5))
+            # self.pub_real_ur5 = True
+            
+            rospy.sleep(0.5)
+            
+        
+            
     def ds4_teleop(self):
         try:
             if self.joy_msg.buttons[self.ds4_mapper.ps] == 1:
@@ -177,7 +204,6 @@ if __name__ == '__main__':
             print("cartesian goals: {}".format([ur5_kdl.goal_x, ur5_kdl.goal_y, ur5_kdl.goal_z]))
             ur5_kdl.ur5_publisher(joints=kdl_goal_joints, delay=0.0)
             ur5_kdl.ds4_teleop()
-            
             rate.sleep()
         except KeyboardInterrupt:
             print("shutting down!")
