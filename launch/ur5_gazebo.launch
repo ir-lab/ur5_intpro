@@ -44,5 +44,11 @@
                                                                                              finger_position_controller"                                                                                     
                                                                                              respawn="false" output="screen"/>
 <node name="joy_node" pkg="joy" type="joy_node" output="screen"/>
- 
+
+<arg name="ur5_ip" default="10.218.100.220" />
+<arg name="ur5_port" default="30003" />
+
+<param name="ur5/ip" value="$(arg ur5_ip)" />
+<param name="ur5/port" value="$(arg ur5_port)" />
+
 </launch>
