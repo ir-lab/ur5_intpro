@@ -42,5 +42,6 @@
                                                                                              joint_4_position_controller
                                                                                              joint_5_position_controller"                                                                                     
                                                                                              respawn="false" output="screen"/>
-
+<node name="joy_node" pkg="joy" type="joy_node" output="screen"/>
+ 
 </launch>
