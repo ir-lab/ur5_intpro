@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro"
+       name="ur5" >
+
+  <xacro:arg name="transmission_hw_interface" default="hardware_interface/PositionJointInterface"/>
+
+  <!-- common stuff -->
+  <xacro:include filename="$(find ur_description)/urdf/common.gazebo.xacro" />
+
+  <!-- ur5 -->
+  <xacro:include filename="$(find ur_description)/urdf/ur5.urdf.xacro" />
+
+  <!-- arm -->
+  <xacro:ur5_robot prefix="" joint_limited="false"
+    transmission_hw_interface="$(arg transmission_hw_interface)"
+  />
+
+  <link name="world" />
+
+  <joint name="dummy_joint" type="fixed">
+    <parent link="world"/>
+    <child link="dummy_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+
+  <link name="dummy_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="10000" />
+      <inertia
+        ixx="6666.66"
+        ixy="0"
+        ixz="0"
+        iyy="6666.66"
+        iyz="0"
+        izz="6666.66" />
+    </inertial>
+     <visual>
+      <geometry>
+        <!-- <box size="2.0 2.0 1.0"/> -->
+        <mesh filename="package://ur5_intpro/meshes/table/table.dae" />
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://ur5_intpro/meshes/table/table.dae" />
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+  </link>
+
+  <gazebo reference="dummy_link">
+    <mu1 value="1.0"/>
+    <mu2 value="1.0"/>
+    <kp value="900000000.0"></kp>
+    <kd value="800000000.0"></kd>
+    <selfCollide value="false"/>
+    <static>true</static>
+  </gazebo>
+
+
+  <joint name="world_joint" type="fixed">
+    <parent link="dummy_link" />
+    <child link = "base_link" />
+    <origin xyz="0.0 0.0 1.21207" rpy="0.0 0.0 0.0" />
+  </joint>
+
+ <joint name="robotiq_joint" type="fixed">
+    <parent link="ee_link" />
+    <child link = "robotiq_arg2f_base_link" />
+    <origin xyz="0 0 0" rpy="0.0 0.0 0.0" />
+ </joint>
+<xacro:include filename="$(find robotiq_2f_85_gripper_visualization)/urdf/robotiq_arg2f_transmission.xacro" />
+<xacro:include filename="$(find robotiq_2f_85_gripper_visualization)/urdf/robotiq_arg2f_85_model_macro.xacro" />
+<xacro:robotiq_arg2f_85 prefix=""/>
+
+</robot>
