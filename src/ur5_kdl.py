@@ -167,8 +167,6 @@ class Custom_UR5_KDL:
         
         # get goal id (only for testing)
         goal_id = rospy.get_param("goal_id")
-        
-        
         kdl_init_joints = KDL.JntArray(nums_joints)
         kdl_init_joints[0] = self.joint_state_msg.position[2] 
         kdl_init_joints[1] = self.joint_state_msg.position[1] 
@@ -248,14 +246,12 @@ class Custom_UR5_KDL:
         return kdl_goal_joints
         
     def ur5_publisher(self, joints, delay = 0.1, traj_time = 1):
-        # while not rospy.is_shutdown() and not np.allclose(joints,self.joint_state_msg.position,atol=1e-3):
-        current_ur5_joints = []
-        goal_joints = []
-        for j in joints:
-            goal_joints.append(j)
+
+
+        current_ur5_joints = [jnt for jnt in self.ur5_joints.positions]
+        goal_joints        = [jnt for jnt  in joints]
         
-        for j in self.ur5_joints.positions:
-            current_ur5_joints.append(j)
+        
         if not np.allclose(current_ur5_joints,goal_joints, atol=1e-1):
             rospy.set_param("finished_traj",False)
             print("Trajectory_not_finished!")
@@ -263,31 +259,20 @@ class Custom_UR5_KDL:
             rospy.set_param("finished_traj",True)
             print("Finished trajectory")
         
+        
         if self.pub_real_ur5:
-            print("!!!!!!!\n Publishing on real ur5 robot!!!!!")
+            print("!!!!! Publishing on real ur5 robot !!!!!")
             if not rospy.get_param("finished_traj"):
                 self.ur5_control_msg.values = joints
                 self.ur5_control_msg.time = traj_time
                 self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
                 rospy.set_param("move_to_next_primitive",False)
-            # for i,joint in enumerate(joints):
-            #     msg = rows()
-            #     msg.values = [joint]
-            #     rows_msg.append(msg)
-            
-            # self.ur5_matrix.rows = rows_msg
-            # print(self.ur5_matrix)                  
-            # self.real_ur5_joint_publisher.publish(self.ur5_matrix)
-            
-            
+              
         for i, publisher in enumerate(self.ur5_joint_publisher):
             publisher.publish(joints[i])
             rospy.sleep(delay)
-        
-        # print("\n",self.ur5_joints.positions[0],"\n",joints)
-        
+                
         self.pub_real_ur5 = rospy.get_param("move_to_next_primitive",default=False)
-        
         return 
     
     def ds4_ik_mapper(self):
@@ -345,16 +330,14 @@ class Custom_UR5_KDL:
             else:
                 self.pub_real_ur5 = True
             print("Real robot control {}".format(self.pub_real_ur5))
-            # self.pub_real_ur5 = True
-            # rospy.sleep(0.5)
+
         if self.joy_msg.buttons[self.ds4_mapper.l2] == 1 and self.joy_msg.buttons[self.ds4_mapper.r2] == 1:
             if self.pub_real_ur5_cont:
                 self.pub_real_ur5_cont = False
             else:
                 self.pub_real_ur5_cont= True
             print("Real robot control {}".format(self.pub_real_ur5))
-            # self.pub_real_ur5 = True
-            # rospy.sleep(0.5)
+            
         if self.joy_msg.buttons[self.ds4_mapper.ps] == 1 and self.joy_msg.buttons[self.ds4_mapper.option] == 1:
             self.home()
             rospy.sleep(0.5)
