@@ -4,32 +4,32 @@
     <link name="${prefix}robotiq_arg2f_base_link">
       <inertial>
         <origin xyz="8.625E-08 -4.6583E-06 0.03145" rpy="0 0 0" />
-        <mass value="0.22652" />
-        <inertia ixx="0.00020005" ixy="-4.2442E-10" ixz="-2.9069E-10" iyy="0.00017832" iyz="-3.4402E-08" izz="0.00013478" />
+        <mass value="10.22652" />
+        <inertia ixx="0.020005" ixy="-4.2442E-10" ixz="-2.9069E-10" iyy="0.17832" iyz="-3.4402E-08" izz="0.013478" />
       </inertial>
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/visual/robotiq_arg2f_85_base_link.dae" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://ur5_intpro/meshes/visual/robotiq_arg2f_85_base_link.dae"/>
         </geometry>
-        <material name="">
+        <!-- <material name="">
           <color rgba="0.1 0.1 0.1 1" />
-        </material>
+        </material> -->
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-           <mesh filename="package://ur5_intpro/meshes/collision/robotiq_arg2f_base_link.stl" />
+           <mesh filename="package://ur5_intpro/meshes/visual/robotiq_arg2f_85_base_link.dae" />
         </geometry>
       </collision>
     </link>
 
-    <gazebo reference="${prefix}robotiq_arg2f_base_link">
+    <!-- <gazebo reference="${prefix}robotiq_arg2f_base_link">
       <mu1 value="1.0"/>
       <mu2 value="1.0"/>
       <kp value="900000000.0"></kp>
       <kd value="800000000.0"></kd>
-    </gazebo>
+    </gazebo> -->
   </xacro:macro>
 
   <xacro:macro name="finger_joints" params="prefix fingerprefix reflect">

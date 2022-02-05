@@ -12,7 +12,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_outer_knuckle.dae" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_outer_knuckle.dae" scale="1 1 1"/>
         </geometry>
         <material name="">
           <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
@@ -21,7 +21,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/gripper/collision/robotiq_arg2f_85_outer_knuckle.dae" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_outer_knuckle.dae" scale="1 1 1"/>
         </geometry>
       </collision>
     </link>
@@ -44,7 +44,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_outer_finger.dae" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_outer_finger.dae" scale="1 1 1"/>
         </geometry>
         <material name="">
           <color rgba="0.1 0.1 0.1 1" />
@@ -53,7 +53,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/gripper/collision/robotiq_arg2f_85_outer_finger.dae" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_outer_finger.dae" scale="1 1 1"/>
         </geometry>
       </collision>
     </link>
@@ -76,7 +76,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_inner_knuckle.dae" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_inner_knuckle.dae" scale="1 1 1"/>
         </geometry>
         <material name="">
           <color rgba="0.1 0.1 0.1 1" />
@@ -85,7 +85,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/gripper/collision/robotiq_arg2f_85_inner_knuckle.dae" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_inner_knuckle.dae" scale="1 1 1"/>
         </geometry>
       </collision>
     </link>
@@ -108,7 +108,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_inner_finger.dae" scale="0.001 0.001 0.001"/>
+          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_inner_finger.dae" scale="1 1 1"/>
         </geometry>
         <material name="">
           <color rgba="0.1 0.1 0.1 1" />
@@ -117,7 +117,7 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://ur5_intpro/meshes/gripper/collision/robotiq_arg2f_85_inner_finger.dae" scale="0.001 0.001 0.001" />
+          <mesh filename="package://ur5_intpro/meshes/gripper/visual/robotiq_arg2f_85_inner_finger.dae" scale="1 1 1" />
         </geometry>
       </collision>
     </link>
@@ -204,7 +204,7 @@
   </xacro:macro>
 
   <xacro:include filename="$(find ur5_intpro)/urdf/robotiq_arg2f.xacro" />
-
+  
   <xacro:macro name="finger_joint" params="prefix">
     <joint name="${prefix}finger_joint" type="revolute">
       <origin xyz="0 -0.0306011 0.054904" rpy="0 0 ${pi}"/>
