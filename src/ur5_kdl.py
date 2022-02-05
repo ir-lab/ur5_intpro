@@ -2,13 +2,17 @@
 
 from xml.etree.ElementTree import parse
 import numpy as np
+from sklearn import compose
 import kdl_parser_py.urdf
 import PyKDL as KDL
 import rospkg
 import rospy
 from std_msgs.msg import String, Float64, Float64MultiArray
-from irl_robots.msg import ur5Control
+from irl_robots.msg import ur5Control, matrix, rows, ur5Joints, gSimpleControl
 from sensor_msgs.msg import JointState, Joy
+from transforms3d.affines import compose
+from transforms3d.euler import mat2euler, euler2mat
+from transforms3d.quaternions import quat2mat , mat2quat
 import threading
 import os
 import sys
@@ -31,14 +35,20 @@ class Custom_UR5_KDL:
         self.ur5_control_msg = ur5Control()
         self.ur5_control_msg.command = "movej"
         self.ur5_control_msg.acceleration = 1.57
-        self.ur5_control_msg.velocity = 1.57
+        self.ur5_control_msg.velocity = np.pi
         self.ur5_control_msg.jointcontrol = True
         
+        self.ur5_matrix = matrix()
+        self.ur5_rows  = rows()
+        self.ur5_rows.values = []
+        self.ur5_matrix.rows = self.ur5_rows
+        self.ur5_joints = ur5Joints()
+        self.r2fg_msg = gSimpleControl()
         # ds4 key mapper
         self.ds4_mapper = DS4_Mapper()
         self.enable_ds4 = False
         self.limit_cart = 0.8
-        self.cart_step  = 0.005
+        self.cart_step  = 0.05
         
         # kdl setup 
         self.urdf_path = os.path.join(self.this_pkg_path,"urdf/kdl_custom_ur5.urdf")
@@ -53,24 +63,54 @@ class Custom_UR5_KDL:
         self.goal_z   = 0.6
         # for vertical ee config keep yaw=0.0 pitch=np.pi and roll=0.0
         # for horizontal ee  config keep yaw=np.pi/2.0 pitch=0.0 roll=np.pi/2.0
-        self.yaw      = 0
-        self.pitch    = np.pi
-        self.roll     = 0
+        self.yaw      = np.pi
+        self.pitch    = 0
+        self.roll     = np.pi/2.0
         self.rot_cont = True
         
-        
+        self.z_offset = 0.0
+        self.grasp_value = 0
+        self.grasp_steps = 8
         
         self.ur5_joint_publisher = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
         self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
+        self.r2fg_control_publisher = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
+        # self.real_ur5_joint_publisher = rospy.Publisher("/ur5/continuous_controller",matrix,queue_size=10)
         self.pub_real_ur5 = False
-        
+        self.pub_real_ur5_cont = False
         rospy.Subscriber("/joint_states",JointState,self.joint_state_callback,buff_size=1)
+        rospy.Subscriber("/ur5/joints",ur5Joints,self.ur5_joints_callback)
         rospy.Subscriber("/joy",Joy,self.joy_callback)
         rospy.sleep(init_delay)
         
+        rospy.set_param("finished_subtask",True)
+        rospy.set_param("grasp_distance",0)
+        
+        self.goals = {0:[0.7, 0.0, 0.08],
+                      1:[0.7, 0.2, 0.08],
+                      2:[0.7,-0.2, 0.08],
+                      3:[0.4, 0.0, 0.08],
+                      4:[0.4,-0.2, 0.08],
+                      5:[0.4, 0.2, 0.08]}
+        
+        rospy.set_param("goal_id",0)
         if go_midhome:
             self.init_midhome()
-            
+    
+    def __del__(self):
+        print("going home")
+        joints = [0, -1.57, 0 , -1.57, 0, 0] 
+        tmp = 0
+        while tmp<1000:
+            for i, publisher in enumerate(self.ur5_joint_publisher):
+                publisher.publish(joints[i])
+                print("homing joint")
+                rospy.sleep(0.1)
+            tmp += 1
+    
+    def ur5_joints_callback(self,msg):
+        self.ur5_joints = msg
+             
     def joint_state_callback(self,msg):
         self.joint_state_msg = msg
     
@@ -85,6 +125,7 @@ class Custom_UR5_KDL:
         kdl_tree = kdl_parser_py.urdf.treeFromFile(self.urdf_path)[1]
         return kdl_tree.getChain(root_link,leaf_link)
     
+
     def init_midhome(self):
         self.goal_x   = 0.2
         self.goal_y   = 0.0
@@ -99,7 +140,35 @@ class Custom_UR5_KDL:
         rospy.sleep(1)
         return True
     
-    def get_ik(self, nums_joints=6, enable_rot=False):
+    def home(self):
+        joints = [0, -1.57, 0 , -1.57, 0, 0] 
+        tmp = 0
+        # while tmp<10:
+        for i, publisher in enumerate(self.ur5_joint_publisher):
+            publisher.publish(joints[i])
+            print("homing joint")
+            rospy.sleep(0.1)
+            # tmp += 1
+    
+    def grasp(self, value, force=255, speed = 255):
+        if value==None:
+            print("Please provide grasp distance")
+            return
+        if value > 0:
+            print("Closing distance: {}".format(value))
+        self.r2fg_msg.position = abs(int(value))
+        self.r2fg_msg.force    = abs(int(force))
+        self.r2fg_msg.speed    = abs(int(speed))
+        self.r2fg_control_publisher.publish(self.r2fg_msg)
+        # if value
+        # rospy.sleep(0.5)
+            
+    def get_ik(self, nums_joints=6, enable_rot=False, yaw_offset=np.pi/4.0):
+        
+        # get goal id (only for testing)
+        goal_id = rospy.get_param("goal_id")
+        
+        
         kdl_init_joints = KDL.JntArray(nums_joints)
         kdl_init_joints[0] = self.joint_state_msg.position[2] 
         kdl_init_joints[1] = self.joint_state_msg.position[1] 
@@ -107,23 +176,118 @@ class Custom_UR5_KDL:
         kdl_init_joints[3] = self.joint_state_msg.position[3]
         kdl_init_joints[4] = self.joint_state_msg.position[4]
         kdl_init_joints[5] = self.joint_state_msg.position[5] 
-        just_xyz = KDL.Vector(self.goal_x, self.goal_y, self.goal_z)
-        just_rpy = KDL.Rotation().EulerZYX(self.roll, self.pitch, self.yaw) if enable_rot else KDL.Rotation().EulerZYX(0, 0, 0)
+        
+        if not rospy.get_param("finished_subtask"):
+            current_goal =  self.goals[goal_id]
+            
+            if rospy.get_param("go_over_object"):
+                print("Going over object")
+                self.goal_x = current_goal[0] #0.6
+                self.goal_y = current_goal[1] #0.0
+                self.goal_z = 0.35 #0.25
+            
+            elif rospy.get_param("go_to_object"):
+                print("Going to object")
+                # pass
+                self.goal_x = current_goal[0]#0.6
+                self.goal_y = current_goal[1]#0.0
+                self.goal_z = current_goal[2]#0.1
+                
+            elif rospy.get_param("go_to_midhome"):
+                print("Going to midhome")
+                # pass
+                self.goal_x = 0.2
+                self.goal_y = 0.0
+                self.goal_z = 0.5
+            
+            elif rospy.get_param("go_final"):
+                print("Going to final waypoint")
+                # pass
+                self.goal_x = 0.2
+                self.goal_y = 0.4
+                
+                # if current_goal[1]>0:
+                #     self.goal_y = 0.45
+                # else:
+                #     self.goal_y = -0.45
+                self.goal_z = 0.35
+                
+            elif rospy.get_param("place_object"):
+                print("Placing the object")
+                self.goal_x = -0.45
+                self.goal_y = 0.35
+                
+                # if current_goal[1]>0:
+                #     self.goal_y = 0.35
+                # else:
+                #     self.goal_y = -0.35
+                self.goal_z = 0.10
+        # else:
+        #     self.goal_x = 0.4
+        #     self.goal_y = 0.0
+        #     self.goal_z = 0.6
+            
+        if yaw_offset:
+            print("Using yaw offset")
+            tf = compose([0,0,0],euler2mat(0,0,yaw_offset),[1,1,1])
+            self.z_offset = self.goal_z + 0.15
+            goal_tf = compose([self.goal_x,self.goal_y,self.z_offset],euler2mat(self.yaw,self.pitch,self.roll),[1,1,1])
+            goal_tf = np.matmul(tf,goal_tf)
+            # print(goal_tf[0:3,-1])
+            just_xyz = KDL.Vector(goal_tf[0,-1],goal_tf[1,-1],goal_tf[2,-1])
+            rot = mat2euler(goal_tf[0:3,0:3])
+            just_rpy = KDL.Rotation().EulerZYX(rot[2],rot[1],rot[0]) if enable_rot else KDL.Rotation().EulerZYX(0, 0, 0)
+            
+        else:    
+            just_xyz = KDL.Vector(self.goal_x, self.goal_y, self.goal_z)     
+            just_rpy = KDL.Rotation().EulerZYX(self.roll, self.pitch, self.yaw) if enable_rot else KDL.Rotation().EulerZYX(0, 0, 0)
+                
         kdl_goal_frame = KDL.Frame(just_rpy,just_xyz)
         kdl_goal_joints = KDL.JntArray(nums_joints)
         self.ur5_ik_solver.CartToJnt(kdl_init_joints, kdl_goal_frame, kdl_goal_joints)
         return kdl_goal_joints
         
-    def ur5_publisher(self, joints, delay=0.1, traj_time = 1):
+    def ur5_publisher(self, joints, delay = 0.1, traj_time = 1):
         # while not rospy.is_shutdown() and not np.allclose(joints,self.joint_state_msg.position,atol=1e-3):
+        current_ur5_joints = []
+        goal_joints = []
+        for j in joints:
+            goal_joints.append(j)
+        
+        for j in self.ur5_joints.positions:
+            current_ur5_joints.append(j)
+        if not np.allclose(current_ur5_joints,goal_joints, atol=1e-1):
+            rospy.set_param("finished_traj",False)
+            print("Trajectory_not_finished!")
+        else:
+            rospy.set_param("finished_traj",True)
+            print("Finished trajectory")
+        
         if self.pub_real_ur5:
             print("!!!!!!!\n Publishing on real ur5 robot!!!!!")
-            self.ur5_control_msg.values = joints
-            self.ur5_control_msg.time = traj_time
-            self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+            if not rospy.get_param("finished_traj"):
+                self.ur5_control_msg.values = joints
+                self.ur5_control_msg.time = traj_time
+                self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+                rospy.set_param("move_to_next_primitive",False)
+            # for i,joint in enumerate(joints):
+            #     msg = rows()
+            #     msg.values = [joint]
+            #     rows_msg.append(msg)
+            
+            # self.ur5_matrix.rows = rows_msg
+            # print(self.ur5_matrix)                  
+            # self.real_ur5_joint_publisher.publish(self.ur5_matrix)
+            
             
         for i, publisher in enumerate(self.ur5_joint_publisher):
             publisher.publish(joints[i])
+            rospy.sleep(delay)
+        
+        # print("\n",self.ur5_joints.positions[0],"\n",joints)
+        
+        self.pub_real_ur5 = rospy.get_param("move_to_next_primitive",default=False)
+        
         return 
     
     def ds4_ik_mapper(self):
@@ -163,6 +327,18 @@ class Custom_UR5_KDL:
             self.pitch = np.pi 
             self.yaw   = 0.0 
         
+        
+        if self.joy_msg.buttons[self.ds4_mapper.l2] ==  1:
+            self.grasp_value -= self.grasp_steps
+            if self.grasp_value < 1:
+                self.grgrasp_valueap_value = 1
+                
+        if self.joy_msg.buttons[self.ds4_mapper.r2] ==  1:
+            self.grasp_value += self.grasp_steps
+            if self.grasp_value > 255:
+                self.grasp_value = 255
+              
+        
         if self.joy_msg.buttons[self.ds4_mapper.l1] == 1 and self.joy_msg.buttons[self.ds4_mapper.r1] == 1:
             if self.pub_real_ur5:
                 self.pub_real_ur5 = False
@@ -170,9 +346,18 @@ class Custom_UR5_KDL:
                 self.pub_real_ur5 = True
             print("Real robot control {}".format(self.pub_real_ur5))
             # self.pub_real_ur5 = True
-            
+            # rospy.sleep(0.5)
+        if self.joy_msg.buttons[self.ds4_mapper.l2] == 1 and self.joy_msg.buttons[self.ds4_mapper.r2] == 1:
+            if self.pub_real_ur5_cont:
+                self.pub_real_ur5_cont = False
+            else:
+                self.pub_real_ur5_cont= True
+            print("Real robot control {}".format(self.pub_real_ur5))
+            # self.pub_real_ur5 = True
+            # rospy.sleep(0.5)
+        if self.joy_msg.buttons[self.ds4_mapper.ps] == 1 and self.joy_msg.buttons[self.ds4_mapper.option] == 1:
+            self.home()
             rospy.sleep(0.5)
-            
         
             
     def ds4_teleop(self):
@@ -195,15 +380,20 @@ class Custom_UR5_KDL:
 if __name__ == '__main__':
     
     ur5_kdl = Custom_UR5_KDL(go_midhome=False)
-    rate    = rospy.Rate(10)
+    rate    = rospy.Rate(5)
     while not rospy.is_shutdown():
         try:
             print("running node")  
             kdl_goal_joints = ur5_kdl.get_ik(enable_rot=True)
-            # print([np.rad2deg(angle) for angle in kdl_goal_joints])
+            
+            # rospy.set_param("grasp_distance",ur5_kdl.grasp_value)
+            ur5_kdl.grasp(value=rospy.get_param("grasp_distance"))
             print("cartesian goals: {}".format([ur5_kdl.goal_x, ur5_kdl.goal_y, ur5_kdl.goal_z]))
             ur5_kdl.ur5_publisher(joints=kdl_goal_joints, delay=0.0)
             ur5_kdl.ds4_teleop()
             rate.sleep()
+            
         except KeyboardInterrupt:
             print("shutting down!")
+        
+       
