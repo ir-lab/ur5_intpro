@@ -47,8 +47,11 @@
 
 <arg name="ur5_ip" default="10.218.100.220" />
 <arg name="ur5_port" default="30003" />
+<arg name="r2fg_port" default="/dev/ttyUSB0"/>
 
 <param name="ur5/ip" value="$(arg ur5_ip)" />
 <param name="ur5/port" value="$(arg ur5_port)" />
+<param name="r2fg/port" value="$(arg r2fg_port)" />
+
 
 </launch>
