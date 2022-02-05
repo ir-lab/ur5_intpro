@@ -92,7 +92,7 @@
     <child link="upper_arm_link"/>
     <origin rpy="0.0 1.57079632679 0.0" xyz="0.0 0.13585 0.0"/>
     <axis xyz="0 1 0"/>
-    <limit effort="150.0" lower="-3.14159265359" upper="-0.785398163397" velocity="3.15"/>
+    <limit effort="150.0" lower="-1.57079632679" upper="-0.628318530718" velocity="3.15"/>
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
   <link name="upper_arm_link">
@@ -120,7 +120,7 @@
     <child link="forearm_link"/>
     <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.1197 0.425"/>
     <axis xyz="0 1 0"/>
-    <limit effort="150.0" lower="-3.14159265359" upper="3.14159265359" velocity="3.15"/>
+    <limit effort="150.0" lower="0.628318530718" upper="3.14159265359" velocity="3.15"/>
     <dynamics damping="0.0" friction="0.0"/>
   </joint>
   <link name="forearm_link">
@@ -333,6 +333,9 @@
     <parent link="wrist_3_link"/>
     <child link="tool0"/>
   </joint>
+  <!-- shoulder_pan_lower_limit:=-1.0471975512    shoulder_pan_upper_limit:=1.0471975512
+    shoulder_lift_lower_limit:=-1.57079632679    shoulder_lift_upper_limit:=-1.56079632679
+    elbow_joint_lower_limit:=-1.0471975512    elbow_joint_upper_limit:=0 -->
   <link name="world"/>
   <joint name="dummy_joint" type="fixed">
     <parent link="world"/>

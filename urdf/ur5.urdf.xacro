@@ -15,9 +15,9 @@
   </xacro:macro>
 
   <xacro:macro name="ur5_robot" params="prefix joint_limited
-    shoulder_pan_lower_limit:=${-pi/3}    shoulder_pan_upper_limit:=${pi/3}
-    shoulder_lift_lower_limit:=${-pi/2.0}    shoulder_lift_upper_limit:=${-pi/2.0 + 0.01}
-    elbow_joint_lower_limit:=${-pi/3.0}    elbow_joint_upper_limit:=${0}
+    shoulder_pan_lower_limit:=${-pi}    shoulder_pan_upper_limit:=${pi}
+    shoulder_lift_lower_limit:=${-pi}    shoulder_lift_upper_limit:=${pi}
+    elbow_joint_lower_limit:=${-pi}    elbow_joint_upper_limit:=${pi}
     wrist_1_lower_limit:=${-pi}    wrist_1_upper_limit:=${pi}
     wrist_2_lower_limit:=${-pi}    wrist_2_upper_limit:=${pi}
     wrist_3_lower_limit:=${-pi}    wrist_3_upper_limit:=${pi}
@@ -25,6 +25,7 @@
     safety_limits:=false safety_pos_margin:=0.15
     safety_k_position:=20">
 
+    
     <!-- Inertia parameters -->
     <xacro:property name="base_mass" value="4.0" />  <!-- This mass might be incorrect -->
     <xacro:property name="shoulder_mass" value="3.7000" />
