@@ -58,14 +58,17 @@ class Custom_UR5_KDL:
         
         # ik prameters
 
-        self.goal_x   = 0.4
+        self.goal_x   = 0.5
         self.goal_y   = 0.0
-        self.goal_z   = 0.6
+        self.goal_z   = 0.5
         # for vertical ee config keep yaw=0.0 pitch=np.pi and roll=0.0
         # for horizontal ee  config keep yaw=np.pi/2.0 pitch=0.0 roll=np.pi/2.0
-        self.yaw      = np.pi
+        # self.yaw      = np.pi/2.0
+        # self.pitch    = 0.0
+        # self.roll     = np.pi/2.0
+        self.yaw      = -np.pi 
         self.pitch    = 0
-        self.roll     = np.pi/2.0
+        self.roll     = -np.pi/2
         self.rot_cont = True
         
         self.z_offset = 0.0
@@ -163,17 +166,17 @@ class Custom_UR5_KDL:
         # if value
         # rospy.sleep(0.5)
             
-    def get_ik(self, nums_joints=6, enable_rot=False, yaw_offset=np.pi/4.0):
+    def get_ik(self, nums_joints=6, enable_rot=False, yaw_offset=0):
         
         # get goal id (only for testing)
         goal_id = rospy.get_param("goal_id")
         kdl_init_joints = KDL.JntArray(nums_joints)
-        kdl_init_joints[0] = self.joint_state_msg.position[2] 
-        kdl_init_joints[1] = self.joint_state_msg.position[1] 
+        kdl_init_joints[0] = self.joint_state_msg.position[3] 
+        kdl_init_joints[1] = self.joint_state_msg.position[2] 
         kdl_init_joints[2] = self.joint_state_msg.position[0]
-        kdl_init_joints[3] = self.joint_state_msg.position[3]
-        kdl_init_joints[4] = self.joint_state_msg.position[4]
-        kdl_init_joints[5] = self.joint_state_msg.position[5] 
+        kdl_init_joints[3] = self.joint_state_msg.position[4]
+        kdl_init_joints[4] = self.joint_state_msg.position[5]
+        kdl_init_joints[5] = self.joint_state_msg.position[6] 
         
         if not rospy.get_param("finished_subtask"):
             current_goal =  self.goals[goal_id]
@@ -236,8 +239,10 @@ class Custom_UR5_KDL:
             rot = mat2euler(goal_tf[0:3,0:3])
             just_rpy = KDL.Rotation().EulerZYX(rot[2],rot[1],rot[0]) if enable_rot else KDL.Rotation().EulerZYX(0, 0, 0)
             
-        else:    
-            just_xyz = KDL.Vector(self.goal_x, self.goal_y, self.goal_z)     
+        else:   
+            self.z_offset = self.goal_z + 0.15
+            
+            just_xyz = KDL.Vector(self.goal_x, self.goal_y, self.z_offset)     
             just_rpy = KDL.Rotation().EulerZYX(self.roll, self.pitch, self.yaw) if enable_rot else KDL.Rotation().EulerZYX(0, 0, 0)
                 
         kdl_goal_frame = KDL.Frame(just_rpy,just_xyz)
@@ -363,7 +368,7 @@ class Custom_UR5_KDL:
 if __name__ == '__main__':
     
     ur5_kdl = Custom_UR5_KDL(go_midhome=False)
-    rate    = rospy.Rate(5)
+    rate    = rospy.Rate(10)
     while not rospy.is_shutdown():
         try:
             print("running node")  
