@@ -58,9 +58,9 @@ class Custom_UR5_KDL:
         
         # ik prameters
 
-        self.goal_x   = 0.5
+        self.goal_x   = 0.6
         self.goal_y   = 0.0
-        self.goal_z   = 0.5
+        self.goal_z   = 0.4
         # for vertical ee config keep yaw=0.0 pitch=np.pi and roll=0.0
         # for horizontal ee  config keep yaw=np.pi/2.0 pitch=0.0 roll=np.pi/2.0
         # self.yaw      = np.pi/2.0
@@ -189,24 +189,20 @@ class Custom_UR5_KDL:
             
             elif rospy.get_param("go_to_object"):
                 print("Going to object")
-                # pass
                 self.goal_x = current_goal[0]#0.6
                 self.goal_y = current_goal[1]#0.0
                 self.goal_z = current_goal[2]#0.1
                 
             elif rospy.get_param("go_to_midhome"):
                 print("Going to midhome")
-                # pass
                 self.goal_x = 0.2
                 self.goal_y = 0.0
                 self.goal_z = 0.5
             
             elif rospy.get_param("go_final"):
                 print("Going to final waypoint")
-                # pass
                 self.goal_x = 0.2
                 self.goal_y = 0.4
-                
                 # if current_goal[1]>0:
                 #     self.goal_y = 0.45
                 # else:
