@@ -58,9 +58,9 @@ class Custom_UR5_KDL:
         
         # ik prameters
 
-        self.goal_x   = 0.6
-        self.goal_y   = 0.0
-        self.goal_z   = 0.4
+        self.goal_x   = 0.2
+        self.goal_y   = 0.4
+        self.goal_z   = 0.35
         # for vertical ee config keep yaw=0.0 pitch=np.pi and roll=0.0
         # for horizontal ee  config keep yaw=np.pi/2.0 pitch=0.0 roll=np.pi/2.0
         # self.yaw      = np.pi/2.0
@@ -73,11 +73,14 @@ class Custom_UR5_KDL:
         
         self.z_offset = 0.0
         self.grasp_value = 0
+        self.sim_grasp_value = 0.0
         self.grasp_steps = 8
         
         self.ur5_joint_publisher = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
         self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
         self.r2fg_control_publisher = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
+        # /finger_position_controller/command
+        self.sim_r2fg_control_publisher = rospy.Publisher("/finger_position_controller/command",Float64,queue_size=10)
         # self.real_ur5_joint_publisher = rospy.Publisher("/ur5/continuous_controller",matrix,queue_size=10)
         self.pub_real_ur5 = False
         self.pub_real_ur5_cont = False
@@ -131,8 +134,8 @@ class Custom_UR5_KDL:
 
     def init_midhome(self):
         self.goal_x   = 0.2
-        self.goal_y   = 0.0
-        self.goal_z   = 0.4
+        self.goal_y   = 0.4
+        self.goal_z   = 0.35
         self.yaw      = np.pi/2.
         self.pitch    = 0
         self.roll     = np.pi/2.0
@@ -159,10 +162,13 @@ class Custom_UR5_KDL:
             return
         if value > 0:
             print("Closing distance: {}".format(value))
+        
+        self.sim_grasp_value = float(value/255)
         self.r2fg_msg.position = abs(int(value))
         self.r2fg_msg.force    = abs(int(force))
         self.r2fg_msg.speed    = abs(int(speed))
         self.r2fg_control_publisher.publish(self.r2fg_msg)
+        self.sim_r2fg_control_publisher.publish(self.grasp_value)
         # if value
         # rospy.sleep(0.5)
             
@@ -266,6 +272,7 @@ class Custom_UR5_KDL:
             if not rospy.get_param("finished_traj"):
                 self.ur5_control_msg.values = joints
                 self.ur5_control_msg.time = traj_time
+                rospy.sleep(0.5)
                 self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
                 rospy.set_param("move_to_next_primitive",False)
               

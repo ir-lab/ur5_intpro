@@ -63,7 +63,7 @@
     </link>
     </model>
 
-     <model name='lab_light_2'>
+     <!-- <model name='lab_light_2'>
     <static>0</static>
     <link name='lab_light_2_link'>
       <gravity>0</gravity>
@@ -79,7 +79,6 @@
         </inertia>
       </inertial>
       <light type="directional" name="light">
-      <!-- <cast_shadows>true</cast_shadows> -->
       <pose>0 0 10 0 0 0</pose>
       <diffuse>0.8 0.8 0.8 1</diffuse>
       <specular>0.2 0.2 0.2 1</specular>
@@ -92,7 +91,7 @@
       <direction>-0.5 -0.3 -1.0</direction>
     </light>
     </link>
-    </model>
+    </model> -->
 
     <model name="Cube_1">
     <pose>120 0 0 0 0 0</pose>
@@ -495,7 +494,7 @@
 
      <model name="downtop_camera">
       <!-- <pose>0 0.3 -10 1.57 -1.57 0</pose> -->
-      <pose>0.3556 0 -10 0 -1.57 0</pose>
+      <pose>0.356 0 -7 0 -1.57 0</pose>
       <!-- <pose>-0.8 -0.19 4.4 1.57 1.57 0</pose> -->
       <static>true</static>
       <link name="camera_link">
@@ -512,11 +511,11 @@
           <camera name="head">
             <!-- <horizontal_fov>1.3962634</horizontal_fov> -->
             <!-- <horizontal_fov>0.17453292519943295</horizontal_fov> -->
-            <horizontal_fov>0.0872665</horizontal_fov>
+            <horizontal_fov>0.20</horizontal_fov>
             <image>
               <!-- <width>1920</width> -->
-              <width>800</width>
-              <height>600</height>
+              <width>1280</width>
+              <height>720</height>
               <!-- <height>1080</height> -->
               <format>R8G8B8</format>
             </image>

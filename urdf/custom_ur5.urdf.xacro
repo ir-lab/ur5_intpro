@@ -48,13 +48,13 @@
         iyz="0"
         izz="6666.66" />
     </inertial>
-     <visual>
-      <geometry>
+     <!-- <visual> -->
+      <!-- <geometry> -->
         <!-- <box size="2.0 2.0 1.0"/> -->
-        <mesh filename="package://ur5_intpro/meshes/table/table.dae" />
-      </geometry>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-    </visual>
+        <!-- <mesh filename="package://ur5_intpro/meshes/table/table.dae" /> -->
+      <!-- </geometry> -->
+      <!-- <origin rpy="0 0 0" xyz="0 0 0"/> -->
+    <!-- </visual> -->
     <collision>
       <geometry>
         <mesh filename="package://ur5_intpro/meshes/table/table.dae" />
