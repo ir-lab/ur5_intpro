@@ -33,8 +33,9 @@ class Custom_UR5_KDL:
         self.joint_state_msg = JointState()
         self.joy_msg      = Joy()
         self.ur5_control_msg = ur5Control()
+        # self.ur5_control_msg.command = "speedj"
         self.ur5_control_msg.command = "movej"
-        self.ur5_control_msg.acceleration = 1.57
+        self.ur5_control_msg.acceleration = np.pi/2.0
         self.ur5_control_msg.velocity = np.pi
         self.ur5_control_msg.jointcontrol = True
         
@@ -92,12 +93,17 @@ class Custom_UR5_KDL:
         rospy.set_param("finished_subtask",True)
         rospy.set_param("grasp_distance",0)
         
-        self.goals = {0:[0.7, 0.0, 0.08],
-                      1:[0.7, 0.2, 0.08],
-                      2:[0.7,-0.2, 0.08],
-                      3:[0.4, 0.0, 0.08],
-                      4:[0.4,-0.2, 0.08],
-                      5:[0.4, 0.2, 0.08]}
+        self.goals = {0:[0.6, 0.0, 0.08],
+                      1:[0.6, 0.2, 0.08],
+                      2:[0.6, 0.4, 0.08],
+                      3:[0.6,-0.2, 0.08],
+                      4:[0.6,-0.4, 0.08],
+                      5:[0.35, 0.0, 0.08],
+                      6:[0.35, 0.2, 0.08],
+                      7:[0.35, 0.4, 0.08],
+                      8:[0.35,-0.2, 0.08],
+                      9:[0.35,-0.4, 0.08]       
+                      }
         
         rospy.set_param("goal_id",0)
         if go_midhome:
@@ -209,21 +215,36 @@ class Custom_UR5_KDL:
                 print("Going to final waypoint")
                 self.goal_x = 0.2
                 self.goal_y = 0.4
-                # if current_goal[1]>0:
-                #     self.goal_y = 0.45
-                # else:
-                #     self.goal_y = -0.45
+                if current_goal[1]>0:
+                    self.goal_y = 0.4
+                else:
+                    self.goal_y = -0.4
                 self.goal_z = 0.35
                 
             elif rospy.get_param("place_object"):
                 print("Placing the object")
-                self.goal_x = -0.45
-                self.goal_y = 0.35
+                # self.goal_x = -0.45
+                self.goal_x = 0.0
+                # self.goal_y = 0.35
                 
-                # if current_goal[1]>0:
-                #     self.goal_y = 0.35
-                # else:
-                #     self.goal_y = -0.35
+                if current_goal[1]>0:
+                    self.goal_y = 0.35
+                else:
+                    self.goal_y = -0.35
+                    
+                self.goal_z = 0.10
+                
+            elif rospy.get_param("slide_object"):
+                print("Sliding the object")
+                # self.goal_x = -0.45
+                self.goal_x = -0.1
+                # self.goal_y = 0.35
+                
+                if current_goal[1]>0:
+                    self.goal_y = 0.35
+                else:
+                    self.goal_y = -0.35
+                    
                 self.goal_z = 0.10
         # else:
         #     self.goal_x = 0.4
