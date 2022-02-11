@@ -1,0 +1,4 @@
+irl_robot_command: "movej"
+irl_robot_accl: 3.14
+irl_robot_vel: 3.14
+irl_robot_com_time: 0.0
