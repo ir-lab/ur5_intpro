@@ -34,9 +34,11 @@ class Custom_UR5_KDL:
         self.joy_msg      = Joy()
         self.ur5_control_msg = ur5Control()
         # self.ur5_control_msg.command = "speedj"
-        self.ur5_control_msg.command = "movej"
-        self.ur5_control_msg.acceleration = np.pi/2.0
-        self.ur5_control_msg.velocity = np.pi
+        self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",default="movej") #"movej"
+        self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",default=0) #np.pi/2.0
+        self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",default=0) 
+        self.ur5_control_msg.time         = rospy.get_param("irl_robot_com_time",default=0.5)
+
         self.ur5_control_msg.jointcontrol = True
         
         self.ur5_matrix = matrix()
@@ -92,18 +94,31 @@ class Custom_UR5_KDL:
         
         rospy.set_param("finished_subtask",True)
         rospy.set_param("grasp_distance",0)
+        rospy.set_param("slide_object",False)
         
-        self.goals = {0:[0.6, 0.0, 0.08],
-                      1:[0.6, 0.2, 0.08],
-                      2:[0.6, 0.4, 0.08],
-                      3:[0.6,-0.2, 0.08],
-                      4:[0.6,-0.4, 0.08],
-                      5:[0.35, 0.0, 0.08],
-                      6:[0.35, 0.2, 0.08],
-                      7:[0.35, 0.4, 0.08],
-                      8:[0.35,-0.2, 0.08],
-                      9:[0.35,-0.4, 0.08]       
+        self.goals = {0:[0.50, 0.0, 0.08],
+                      1:[0.50, 0.2, 0.08],
+                      2:[0.50, 0.4, 0.08],
+                      3:[0.50,-0.2, 0.08],
+                      4:[0.50,-0.4, 0.08],
+                      5:[0.25, 0.0, 0.08],
+                      6:[0.25, 0.2, 0.08],
+                      7:[0.25, 0.4, 0.08],
+                      8:[0.25,-0.2, 0.08],
+                      9:[0.25,-0.4, 0.08]       
                       }
+
+        # self.goals = {0:[0.6, 0.0, 0.08],
+        #               1:[0.6, 0.2, 0.08],
+        #               2:[0.6, 0.4, 0.08],
+        #               3:[0.6,-0.2, 0.08],
+        #               4:[0.6,-0.4, 0.08],
+        #               5:[0.35, 0.0, 0.08],
+        #               6:[0.35, 0.2, 0.08],
+        #               7:[0.35, 0.4, 0.08],
+        #               8:[0.35,-0.2, 0.08],
+        #               9:[0.35,-0.4, 0.08]       
+        #               }
         
         rospy.set_param("goal_id",0)
         if go_midhome:
@@ -139,16 +154,23 @@ class Custom_UR5_KDL:
     
 
     def init_midhome(self):
-        self.goal_x   = 0.2
-        self.goal_y   = 0.4
-        self.goal_z   = 0.35
-        self.yaw      = np.pi/2.
-        self.pitch    = 0
-        self.roll     = np.pi/2.0
-        self.rot_cont = True
-        midhome_joints = self.get_ik()
-        # midhome_joints = [0.57988, -0.99270, 2.03353, -0.96921, 1.40923, 1.5766]
-        self.ur5_publisher(joints=midhome_joints, delay=0.1)
+        # self.goal_x   = 0.2
+        # self.goal_y   = 0.4
+        # self.goal_z   = 0.35
+        # self.yaw      = np.pi/2.
+        # self.pitch    = 0
+        # self.roll     = np.pi/2.0
+        # self.rot_cont = True
+        # midhome_joints = self.get_ik()
+        midhome_joints = [1.6459543704986572, -1.6812246481524866, 1.4999432563781738, -1.3898146788226526, -1.5704978148089808, 0.8604261875152588]
+        self.ur5_control_msg.values = midhome_joints
+        self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+        for i, publisher in enumerate(self.ur5_joint_publisher):
+            publisher.publish(midhome_joints[i])
+            rospy.sleep(0.1)
+
+
+
         rospy.sleep(1)
         return True
     
@@ -197,7 +219,7 @@ class Custom_UR5_KDL:
                 print("Going over object")
                 self.goal_x = current_goal[0] #0.6
                 self.goal_y = current_goal[1] #0.0
-                self.goal_z = 0.35 #0.25
+                self.goal_z = 0.25 #0.25
             
             elif rospy.get_param("go_to_object"):
                 print("Going to object")
@@ -219,12 +241,12 @@ class Custom_UR5_KDL:
                     self.goal_y = 0.4
                 else:
                     self.goal_y = -0.4
-                self.goal_z = 0.35
+                self.goal_z = 0.25
                 
             elif rospy.get_param("place_object"):
                 print("Placing the object")
                 # self.goal_x = -0.45
-                self.goal_x = 0.0
+                self.goal_x = -0.45
                 # self.goal_y = 0.35
                 
                 if current_goal[1]>0:
@@ -292,8 +314,7 @@ class Custom_UR5_KDL:
             print("!!!!! Publishing on real ur5 robot !!!!!")
             if not rospy.get_param("finished_traj"):
                 self.ur5_control_msg.values = joints
-                self.ur5_control_msg.time = traj_time
-                rospy.sleep(0.5)
+                rospy.sleep(rospy.get_param("shadow_delay",default=0.0))
                 self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
                 rospy.set_param("move_to_next_primitive",False)
               
@@ -368,8 +389,12 @@ class Custom_UR5_KDL:
             print("Real robot control {}".format(self.pub_real_ur5))
             
         if self.joy_msg.buttons[self.ds4_mapper.ps] == 1 and self.joy_msg.buttons[self.ds4_mapper.option] == 1:
-            self.home()
-            rospy.sleep(0.5)
+            print("Going to mid home!!!!")
+            self.init_midhome()
+            rospy.sleep(1)
+            self.goal_x   = 0.2
+            self.goal_y   = 0.4
+            self.goal_z   = 0.35
         
             
     def ds4_teleop(self):
