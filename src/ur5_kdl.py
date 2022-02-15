@@ -38,9 +38,10 @@ class Custom_UR5_KDL:
         self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",default=0) #np.pi/2.0
         self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",default=0) 
         self.ur5_control_msg.time         = rospy.get_param("irl_robot_com_time",default=0.5)
-
-        self.ur5_control_msg.jointcontrol = True
         
+        self.ur5_control_msg.jointcontrol = True
+        self.ur5_control_timeout = 0
+
         self.ur5_matrix = matrix()
         self.ur5_rows  = rows()
         self.ur5_rows.values = []
@@ -302,7 +303,7 @@ class Custom_UR5_KDL:
         goal_joints        = [jnt for jnt  in joints]
         
         
-        if not np.allclose(current_ur5_joints,goal_joints, atol=1e-1):
+        if not np.allclose(current_ur5_joints,goal_joints, atol=1e-2):
             rospy.set_param("finished_traj",False)
             print("Trajectory_not_finished!")
         else:
@@ -317,6 +318,15 @@ class Custom_UR5_KDL:
                 rospy.sleep(rospy.get_param("shadow_delay",default=0.0))
                 self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
                 rospy.set_param("move_to_next_primitive",False)
+                self.ur5_control_timeout = 0
+
+
+        self.ur5_control_timeout += 1
+        print("current time out {}".format(self.ur5_control_timeout))
+        if self.ur5_control_timeout > 5:
+            print("Timeout Ouccured!!!!1\n")
+            rospy.set_param("finished_traj",True)
+            self.ur5_control_timeout = 0
               
         for i, publisher in enumerate(self.ur5_joint_publisher):
             publisher.publish(joints[i])

@@ -7,7 +7,7 @@ import time
 import numpy as np
 import random
 
-CLOSING_DISTANCE = 105
+CLOSING_DISTANCE = 0 #105
 OPENING_DISTANCE = 0
 
 
@@ -90,17 +90,17 @@ def pick_and_place_object(object_id=0, flag=True):
     flag = True
     
     
-    # Slide the object back
-    rospy.set_param("slide_object",True)
-    rospy.set_param("move_to_next_primitive",True)
-    while not rospy.get_param("finished_traj"):
-        if flag:
-            print("waiting to finish traj for sliding the object")
-            flag = False
-        time.sleep(0.1)
-    rospy.set_param("finished_traj",False)
+    # # Slide the object back
+    # rospy.set_param("slide_object",True)
+    # rospy.set_param("move_to_next_primitive",True)
+    # while not rospy.get_param("finished_traj"):
+    #     if flag:
+    #         print("waiting to finish traj for sliding the object")
+    #         flag = False
+    #     time.sleep(0.1)
+    # rospy.set_param("finished_traj",False)
     rospy.set_param("slide_object",False)
-    flag = True
+    # flag = True
     
     # Open the gripper
     rospy.set_param("grasp_distance",OPENING_DISTANCE)
@@ -147,16 +147,18 @@ if __name__ == '__main__':
     
     # zig zag [M-shape]
     # goal_id = [2,6,0,8,4]
+    goal_id = [2,6,0,8]
     
     # vertical 3I
-    goal_id = [7,2,5,0,9,4]
+    # goal_id = [7,2,5,0,9,4]
     
     # vertical 2I
     # goal_id = [6,1,8,3]
     
-    
-    # goal_id = [1,2,6,7]
-    random.shuffle(goal_id)
+
+    # goal_id = [1,2]
+
+    # random.shuffle(goal_id)
     # goal_id = goal_id[0:int(len(goal_id)/3)]
     
     print("Going to sort total [{}] objects".format(len(goal_id)))
