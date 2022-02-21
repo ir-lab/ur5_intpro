@@ -36,7 +36,9 @@ class PNP:
         self.ur5_control_msg = ur5Control()
         self.ur5_joints = ur5Joints()
         self.r2fg_msg = gSimpleControl()
-
+        self.close_distance = int(105)
+        self.open_distance = int(0)
+        
         # cartesian goal 
         self.trans = np.array([0.20, 0.40, 0.35],dtype=np.float)
         self.euler = np.array([-np.pi/2, 0, -np.pi],dtype=np.float) # for vertical position
@@ -55,7 +57,8 @@ class PNP:
         self.ur5_joint_publisher = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
         self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
         self.r2fg_control_publisher = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
-           
+        self.sim_r2fg_control_publisher = rospy.Publisher("/finger_position_controller/command",Float64,queue_size=10)
+        
         self.goals = {0:[0.30,  0.58, 0.08],
                       1:[0.30,  0.38, 0.08],
                       2:[0.30,  0.18, 0.08],
@@ -87,6 +90,20 @@ class PNP:
     
     def joint_state_callback(self,msg):
         self.joint_state_msg = msg
+        
+    def grasp(self, value, force=255, speed = 255):
+        if value==None:
+            print("Please provide grasp distance")
+            return
+        if value > 0:
+            print("Closing distance: {}".format(value))
+        
+        self.sim_grasp_value = float(value/255)
+        self.r2fg_msg.position = abs(int(value))
+        self.r2fg_msg.force    = abs(int(force))
+        self.r2fg_msg.speed    = abs(int(speed))
+        self.r2fg_control_publisher.publish(self.r2fg_msg)
+        self.sim_r2fg_control_publisher.publish(self.sim_grasp_value)
 
     # Get the ik solution given global trans and rotations
     def get_ik(self):
@@ -103,6 +120,8 @@ class PNP:
         # goal_tf = np.matmul(compose([0,0,0],euler2mat(0,0,np/4),[1,1,1]))
         # self.trans = goal_tf[0:3,-1]
         # self.euler = mat2euler(self.goal_tf[0:3,0:3])
+        
+        
         goal_xyz = KDL.Vector(self.trans[0],
                               self.trans[1],
                               self.trans[2]+0.15) # z offset for end effector
@@ -128,21 +147,26 @@ class PNP:
             self.ur5_joint_publisher[i].publish(jnt)
         
     # get the current joint angles of simulated robot
-    def get_current_sim_joints(self):
+    def get_current_sim_joints(self, ur5_type = "sim"):
+        
         current_joints =[] 
-        current_joints.append(self.joint_state_msg.position[3])
-        current_joints.append(self.joint_state_msg.position[2])
-        current_joints.append(self.joint_state_msg.position[0])
-        current_joints.append(self.joint_state_msg.position[4])
-        current_joints.append(self.joint_state_msg.position[5])
-        current_joints.append(self.joint_state_msg.position[6])
+        if ur5_type == "sim":
+            current_joints.append(self.joint_state_msg.position[3])
+            current_joints.append(self.joint_state_msg.position[2])
+            current_joints.append(self.joint_state_msg.position[0])
+            current_joints.append(self.joint_state_msg.position[4])
+            current_joints.append(self.joint_state_msg.position[5])
+            current_joints.append(self.joint_state_msg.position[6])
+        if ur5_type == "real":
+            current_joints = [joint for joint in self.ur5_joints.positions]
+
         return current_joints
-    
+
     # wait till trajectory is finished
-    def wait_till_finish_traj(self, goal_joints, thresh=1e-3):
+    def wait_till_finish_traj(self, goal_joints, thresh=1e-3, ur5_type="sim"):
         while not np.allclose(self.current_joints,[jnt  for jnt in goal_joints],atol=thresh):
                 # print(self.current_joints,goal_joints)
-                self.current_joints = self.get_current_sim_joints()
+                self.current_joints = self.get_current_sim_joints(ur5_type=ur5_type)
                 # print("waiting to reach goal")
                 rospy.sleep(0.1)
         return True
@@ -185,8 +209,7 @@ class PNP:
             self.wait_till_finish_traj(goal_joints)
 
             # Grasp object
-            #
-            #
+            self.grasp(value = self.close_distance)
             
             # Go over the object
             self.trans[-1] = 0.25
@@ -228,6 +251,11 @@ class PNP:
             print("Going to place the object")
             self.wait_till_finish_traj(goal_joints)
             
+            
+            # De-grasp the object
+            self.grasp(value = self.open_distance)
+        
+            
             # Go to the final way point
             self.trans[0] = 0.2
             if self.trans[1]>0:
@@ -242,9 +270,6 @@ class PNP:
             
         except KeyError:
             print("Goal not found for goal id: {}".format(goal_id))
-
-
-
 
 
 
