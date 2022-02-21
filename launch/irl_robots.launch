@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <launch>
+<rosparam command="load" file="$(find ur5_intpro)/config/ur5_params.yaml" />
 
 <arg name="ur5_ip" default="192.168.1.132" />
 <arg name="ur5_port" default="30003" />
