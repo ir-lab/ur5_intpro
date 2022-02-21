@@ -43,7 +43,11 @@
                                                                                              joint_5_position_controller
                                                                                              finger_position_controller"                                                                                     
                                                                                              respawn="false" output="screen"/>
-<node name="joy_node" pkg="joy" type="joy_node" output="screen"/>
+<arg name="dev" default="0"/>
+
+<node name="joy_node" pkg="joy" type="joy_node" output="screen">
+ <param name="dev" value="/dev/input/js$(arg dev)" />
+</node>
 
 <!-- <arg name="ur5_ip" default="10.218.100.220" /> -->
 <!-- <arg name="ur5_ip" default="10.218.100.220" />
