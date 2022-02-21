@@ -494,7 +494,7 @@
 
      <model name="downtop_camera">
       <!-- <pose>0 0.3 -10 1.57 -1.57 0</pose> -->
-      <pose>0.356 0 -7 0 -1.57 0</pose>
+      <pose>0.42 0 -13 0 -1.57 0.2</pose>
       <!-- <pose>-0.8 -0.19 4.4 1.57 1.57 0</pose> -->
       <static>true</static>
       <link name="camera_link">
@@ -511,11 +511,11 @@
           <camera name="head">
             <!-- <horizontal_fov>1.3962634</horizontal_fov> -->
             <!-- <horizontal_fov>0.17453292519943295</horizontal_fov> -->
-            <horizontal_fov>0.20</horizontal_fov>
+            <horizontal_fov>0.10</horizontal_fov>
             <image>
               <!-- <width>1920</width> -->
-              <width>1280</width>
-              <height>720</height>
+              <width>1200</width>
+              <height>1200</height>
               <!-- <height>1080</height> -->
               <format>R8G8B8</format>
             </image>
