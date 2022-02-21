@@ -75,6 +75,7 @@ class PNP:
                       16:[0.64, -0.20, 0.08],  
                       17:[0.64, -0.40, 0.08],  
                       }
+        self.current_joints = [0 for  _ in range(6)]
 
     def init_kdl(self,root_link="base_link",leaf_link="tool0"):
         kdl_tree = kdl_parser_py.urdf.treeFromFile(self.urdf_path)[1]
@@ -87,9 +88,8 @@ class PNP:
     def joint_state_callback(self,msg):
         self.joint_state_msg = msg
 
-    
+    # Get the ik solution given global trans and rotations
     def get_ik(self):
-
         init_joints = KDL.JntArray(6)
         init_joints[0] = self.joint_state_msg.position[3] 
         init_joints[1] = self.joint_state_msg.position[2] 
@@ -117,52 +117,88 @@ class PNP:
 
         return goal_joints
 
-
+    def go_home(self):
+        # self.trans = np.array([0.20, 0.40, 0.35 + 0.15],dtype=np.float)
+        # self.euler = np.array([-np.pi/2, 0, -np.pi],dtype=np.float)
+        # joints = self.get_ik()
+        joints = [1.6459543704986572, -1.6812246481524866, 
+                  1.4999432563781738, -1.3898146788226526, 
+                  -1.5704978148089808, 0.8604261875152588]
+        for i,jnt in enumerate(joints):
+            self.ur5_joint_publisher[i].publish(jnt)
+        
+    # get the current joint angles of simulated robot
+    def get_current_sim_joints(self):
+        current_joints =[] 
+        current_joints.append(self.joint_state_msg.position[3])
+        current_joints.append(self.joint_state_msg.position[2])
+        current_joints.append(self.joint_state_msg.position[0])
+        current_joints.append(self.joint_state_msg.position[4])
+        current_joints.append(self.joint_state_msg.position[5])
+        current_joints.append(self.joint_state_msg.position[6])
+        return current_joints
+    
+    # wait till trajectory is finished
+    def wait_till_finish_traj(self, goal_joints, thresh=1e-3):
+        while not np.allclose(self.current_joints,[jnt  for jnt in goal_joints],atol=thresh):
+                # print(self.current_joints,goal_joints)
+                self.current_joints = self.get_current_sim_joints()
+                # print("waiting to reach goal")
+                rospy.sleep(0.1)
+        return True
+    
+    
+    # pick and place primitives given goal ids
     def pnp_primitve(self):
 
         goal_id = rospy.get_param("goal_id",default=1000)
         if goal_id == 1000:
             return
-        try:
-            self.trans = self.goals[goal_id]
+        
+        if not rospy.get_param("move_to_next_primitive",default=False):
+            return
+        else:
+            rospy.set_param("move_to_next_primitive",False)
             
+        try:
+            self.trans = np.copy(self.goals[goal_id])
+            print(self.goals[goal_id])
             # Go over the object
             self.trans[-1] = 0.25
-            print("Goal trans value: {}".format(self.trans))
             goal_joints = self.get_ik()
-            # print("goal joints: {}".format(goal_joints))
             # publish first on simulated ur5
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
             
-            rospy.sleep(1)
-
+            print("Going over the object")
+            self.wait_till_finish_traj(goal_joints)
+            
+            
             # Go to the object
             self.trans[-1] = 0.08
-            print("Goal trans value: {}".format(self.trans))
             goal_joints = self.get_ik()
-            # print("goal joints: {}".format(goal_joints))
             # publish first on simulated ur5
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
-
+                
+            print("Going to the object")
+            self.wait_till_finish_traj(goal_joints)
 
             # Grasp object
+            #
+            #
             
-
-            rospy.sleep(1)
-
             # Go over the object
             self.trans[-1] = 0.25
-            print("Goal trans value: {}".format(self.trans))
             goal_joints = self.get_ik()
-            # print("goal joints: {}".format(goal_joints))
             # publish first on simulated ur5
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
+            
+            print("Going over the object")
+            self.wait_till_finish_traj(goal_joints)
 
 
-            rospy.sleep(1)
             # Go to the final way point
             self.trans[0] = 0.2
             if self.trans[1]>0:
@@ -171,12 +207,39 @@ class PNP:
                 self.trans[1] = -0.4
             self.trans[2] = 0.25
             goal_joints = self.get_ik()
-            # print("goal joints: {}".format(goal_joints))
             # publish first on simulated ur5
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
+                
+            print("Going to the final way point")
+            self.wait_till_finish_traj(goal_joints)
         
-
+            # Place the object
+            self.trans[0] = -0.35
+            if self.trans[1]>0:
+                self.trans[1] = 0.4
+            else:
+                self.trans[1] = -0.4
+            self.trans[2] = 0.10
+            goal_joints = self.get_ik()
+            # publish first on simulated ur5
+            for i,jnt in enumerate(goal_joints):
+                self.ur5_joint_publisher[i].publish(jnt)     
+            print("Going to place the object")
+            self.wait_till_finish_traj(goal_joints)
+            
+            # Go to the final way point
+            self.trans[0] = 0.2
+            if self.trans[1]>0:
+                self.trans[1] = 0.4
+            else:
+                self.trans[1] = -0.4
+            self.trans[2] = 0.25
+            goal_joints = self.get_ik()
+            # publish first on simulated ur5
+            for i,jnt in enumerate(goal_joints):
+                self.ur5_joint_publisher[i].publish(jnt)
+            
         except KeyError:
             print("Goal not found for goal id: {}".format(goal_id))
 
@@ -192,6 +255,10 @@ if  __name__ == '__main__':
 
     rospy.sleep(1)
     while not rospy.is_shutdown():
+        if rospy.get_param("go_home",default=False):
+            pnp.go_home()
+            rospy.sleep(1.5)
+            rospy.set_param("go_home",False)
         pnp.pnp_primitve()
         rate.sleep()
 
