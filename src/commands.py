@@ -7,11 +7,11 @@ import rospkg
 import os
 import time
 import argparse
+import threading
 
-
-def generate_pattern(goal_id):
+def generate_pattern(goal_id, num_robot_goals = 6):
     pattern = 255*np.ones((340,670,3),dtype="uint8")
-    robot_goals = np.random.choice(goal_id.reshape(-1),size=6,replace=False)    
+    robot_goals = np.random.choice(goal_id.reshape(-1),size=num_robot_goals,replace=False)    
     rsize = 100
     for i,goal in enumerate(goal_id):
         for j,pose in enumerate(goal):
@@ -27,6 +27,22 @@ def generate_pattern(goal_id):
     return pattern, robot_goals
 
 
+def save_data(pattern_img, robot_goals, time_elapsed, exp_type, subject_name):
+    if not os.path.isdir(os.path.join(ur5_intpro_dir,"data",args.subject_name)):
+                os.mkdir(os.path.join(ur5_intpro_dir,"data",args.subject_name))
+
+    t = time.localtime()
+    timestamp = time.strftime('-%b-%d-%Y_%H_%M_%S', t)       
+    pattern_filename     = os.path.join(ur5_intpro_dir,"data",subject_name, exp_type + "-pattern"+timestamp+".png")
+    robot_goals_filename = os.path.join(ur5_intpro_dir,"data",subject_name, exp_type + "-robot_goals"+timestamp+".txt")
+    time_filename = os.path.join(ur5_intpro_dir,"data",subject_name, exp_type + "-time_elapsed"+timestamp+".txt")
+
+    cv2.imwrite(pattern_filename,pattern)
+    np.savetxt(robot_goals_filename,robot_goals,comments="Robot goal ids")
+    np.savetxt(time_filename,np.array([time_elapsed],dtype=np.int32),comments="Execution time for sub experiment (nano seconds)")
+
+# def counter():
+#     for
 
 if __name__ == '__main__':
 
@@ -37,6 +53,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     rospy.init_node("testing")
+    global ur5_intpro_dir
     ur5_intpro_dir = rospkg.RosPack().get_path("ur5_intpro")
     goal_id = np.array([[5,4,3,2,1,0],
                         [11,10,9,8,7,6],
@@ -45,65 +62,83 @@ if __name__ == '__main__':
     np.random.seed(0)    
     pattern, robot_goals = generate_pattern(goal_id)
     
+    global t1
+    global exp_type
     
     while not rospy.is_shutdown():
-        cv2.imshow("pattern",pattern)
-        key = cv2.waitKey(1)
-        if key == ord('n'):
+        try:
+            cv2.imshow("pattern",pattern)
+            key = cv2.waitKey(1)
+            if key == ord('n'):
+                pattern, robot_goals = generate_pattern(goal_id)
 
-            if not os.path.isdir(os.path.join(ur5_intpro_dir,"data",args.subject_name)):
-                os.mkdir(os.path.join(ur5_intpro_dir,"data",args.subject_name))
+            if key == ord('0'):
+                rospy.set_param("do_render",False)
+                rospy.set_param("show_shadow",False)
+                rospy.set_param("render_all",False)
 
-            t = time.localtime()
-            timestamp = time.strftime('-%b-%d-%Y_%H_%M_%S', t)       
-            pattern_filename     = os.path.join(ur5_intpro_dir,"data",args.subject_name,"pattern"+timestamp+".png")
-            robot_goals_filename = os.path.join(ur5_intpro_dir,"data",args.subject_name,"robot_goals"+timestamp+".npy")
             
-            cv2.imwrite(pattern_filename,pattern)
-            np.save(robot_goals_filename,robot_goals)
+            if key == ord('1'):
+                rospy.set_param("do_render",True)
+                rospy.set_param("render_all",True)
+
             
-            pattern, robot_goals = generate_pattern(goal_id)
+            if key == ord('2'):
+                rospy.set_param("do_render",True)
+                rospy.set_param("show_shadow",True)
 
-        if key == ord('0'):
-            rospy.set_param("do_render",False)
-            rospy.set_param("show_shadow",False)
-            rospy.set_param("render_all",False)
+            if rospy.get_param("show_shadow") and rospy.get_param("render_all") and rospy.get_param("do_render"):
+                exp_type = "dual_mode"
 
-        
-        if key == ord('1'):
-            rospy.set_param("do_render",True)
-            rospy.set_param("render_all",True)
-        
-        if key == ord('2'):
-            rospy.set_param("do_render",True)
-            rospy.set_param("show_shadow",True)
-    
-        if key == ord('g'):
-            if rospy.get_param("grasp_distance",default=0) == 105:
-                rospy.set_param("grasp_distance",0)
-                print("Setting grasp distance to 0")
-                rospy.sleep(1)
-            else:
-                rospy.set_param("grasp_distance",105)
-                print("Setting grasp distance to 105")
-                rospy.sleep(1)
+            elif rospy.get_param("show_shadow") and not rospy.get_param("render_all") and rospy.get_param("do_render"):
+                exp_type = "shadow_mode"
 
-        if key == ord('a'):
-            rospy.set_param("goal_ids",[int(i) for i in goal_id.reshape(-1)])
+            elif not rospy.get_param("show_shadow") and rospy.get_param("render_all") and rospy.get_param("do_render"):
+                exp_type = "highlight_mode"
+            
+            elif not rospy.get_param("do_render"):
+                exp_type = "no_mode"
 
-        if key == ord('h'):
-            rospy.set_param("go_home",True)
+            if key == ord('g'):
+                if rospy.get_param("grasp_distance",default=0) == 105:
+                    rospy.set_param("grasp_distance",0)
+                    print("Setting grasp distance to 0")
+                    rospy.sleep(1)
+                else:
+                    rospy.set_param("grasp_distance",105)
+                    print("Setting grasp distance to 105")
+                    rospy.sleep(1)
 
-        if key == ord("s"):
-            rospy.set_param("delay",args.delay)
-            rospy.set_param("goal_ids",[int(g) for g in robot_goals])
-            for goal in robot_goals:
-                rospy.set_param("goal_id",int(goal))
-                rospy.set_param("move_to_next_primitive",True)
-                tmp = 0
-                while rospy.get_param("move_to_next_primitive"):
-                    if tmp > 0:
-                        continue
-                    else:
-                        print("waiting\r")
-                        tmp += 1
+            if key == ord('a'):
+                rospy.set_param("goal_ids",[int(i) for i in goal_id.reshape(-1)])
+                
+
+            if key == ord('h'):
+                rospy.set_param("go_home",True)
+
+            if key == ord("s"):
+                t1 = rospy.Time().now().to_nsec()
+                rospy.set_param("delay",args.delay)
+                rospy.set_param("goal_ids",[int(g) for g in robot_goals])
+                for goal in robot_goals:
+                    rospy.set_param("goal_id",int(goal))
+                    rospy.set_param("move_to_next_primitive",True)
+                    tmp = 0
+                    while rospy.get_param("move_to_next_primitive"):
+                        if tmp > 0:
+                            continue
+                        else:
+                            print("waiting\r")
+                            tmp += 1
+                    
+            
+            if key == ord('f'):
+                t2 = rospy.Time().now().to_nsec()
+                global time_elapsed
+                time_elapsed = t2 - t1
+                save_data(pattern, robot_goals, time_elapsed, exp_type, subject_name=args.subject_name)
+                print("Total_time elapsed in experiment: {}".format(t2-t1))
+
+            rospy.sleep(0.10)
+        except  KeyboardInterrupt:
+            print("Shutting down!")

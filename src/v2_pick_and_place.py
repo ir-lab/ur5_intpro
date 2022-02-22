@@ -36,8 +36,8 @@ class PNP:
         # for real ur5
         self.ur5_control_msg = ur5Control()
         self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",default="movej") #"movej"
-        self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",default=np.pi/2) #np.pi/2.0
-        self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",default=np.pi/2) 
+        self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",default=0) #np.pi/2.0
+        self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",default=0) 
         self.ur5_control_msg.time         = rospy.get_param("irl_robot_com_time",default=0)
         self.ur5_control_msg.jointcontrol = True
         self.ur5_joints = ur5Joints()
@@ -238,7 +238,7 @@ class PNP:
             
             rospy.sleep(rospy.get_param("delay",0.2))
             self.ur5_control_msg.values = goal_joints
-            self.ur5_control_msg.time  =  0.5
+            self.ur5_control_msg.time  =  0.4
             self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
 
             print("Going to the object")
@@ -258,7 +258,7 @@ class PNP:
             
             rospy.sleep(rospy.get_param("delay",0.2))
             self.ur5_control_msg.values = goal_joints
-            self.ur5_control_msg.time  =  0.5
+            self.ur5_control_msg.time  =  0.4
             self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
 
             print("Going over the object")
@@ -281,7 +281,7 @@ class PNP:
             rospy.sleep(rospy.get_param("delay",0.2))
 
             self.ur5_control_msg.values = goal_joints
-            self.ur5_control_msg.time  =  1.5
+            self.ur5_control_msg.time  =  1
             self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
 
             print("Going to the final way point")

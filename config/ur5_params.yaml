@@ -1,7 +1,7 @@
 irl_robot_command: "movej"
-irl_robot_accl: 1.57
-irl_robot_vel: 1.57
-irl_robot_com_time: 1.5
+irl_robot_accl: 3.15
+irl_robot_vel: 3.15
+irl_robot_com_time: 1
 ur5:
   control_params:
     p_gain: 2
