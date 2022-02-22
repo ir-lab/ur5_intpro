@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 
+from posixpath import join
 from re import S
 import numpy as np
 import kdl_parser_py.urdf
@@ -34,8 +35,14 @@ class PNP:
 
         # for real ur5
         self.ur5_control_msg = ur5Control()
+        self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",default="movej") #"movej"
+        self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",default=np.pi/2) #np.pi/2.0
+        self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",default=np.pi/2) 
+        self.ur5_control_msg.time         = rospy.get_param("irl_robot_com_time",default=0)
+        self.ur5_control_msg.jointcontrol = True
         self.ur5_joints = ur5Joints()
         self.r2fg_msg = gSimpleControl()
+        # self.close_distance = int(0)
         self.close_distance = int(105)
         self.open_distance = int(0)
         
@@ -55,9 +62,10 @@ class PNP:
         rospy.Subscriber("/ur5/joints",ur5Joints,self.ur5_joints_callback)
 
         self.ur5_joint_publisher = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
-        self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
+        self.real_ur5_joint_publisher_1 = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
         self.r2fg_control_publisher = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
         self.sim_r2fg_control_publisher = rospy.Publisher("/finger_position_controller/command",Float64,queue_size=10)
+    
         
         self.goals = {0:[0.30,  0.58, 0.08],
                       1:[0.30,  0.38, 0.08],
@@ -79,6 +87,12 @@ class PNP:
                       17:[0.64, -0.40, 0.08],  
                       }
         self.current_joints = [0 for  _ in range(6)]
+        self.grasp(value=self.open_distance)
+        
+        rospy.set_param("move_to_next_primitive",False)
+        rospy.set_param("goal_id",[1000])
+        self.control_buffer = 100
+        self.control_timeout = 0
 
     def init_kdl(self,root_link="base_link",leaf_link="tool0"):
         kdl_tree = kdl_parser_py.urdf.treeFromFile(self.urdf_path)[1]
@@ -87,6 +101,7 @@ class PNP:
 
     def ur5_joints_callback(self,msg):
         self.ur5_joints = msg
+        # print(msg)
     
     def joint_state_callback(self,msg):
         self.joint_state_msg = msg
@@ -140,11 +155,18 @@ class PNP:
         # self.trans = np.array([0.20, 0.40, 0.35 + 0.15],dtype=np.float)
         # self.euler = np.array([-np.pi/2, 0, -np.pi],dtype=np.float)
         # joints = self.get_ik()
-        joints = [1.6459543704986572, -1.6812246481524866, 
-                  1.4999432563781738, -1.3898146788226526, 
-                  -1.5704978148089808, 0.8604261875152588]
+        
+        joints = [1.6459543704986572, -1.6812246481524866, 1.4999432563781738, -1.3898146788226526, -1.5704978148089808, 0.8604261875152588]
+        print("Going home")
+        self.ur5_control_msg.values = joints
+        self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
+
+
         for i,jnt in enumerate(joints):
             self.ur5_joint_publisher[i].publish(jnt)
+        
+        rospy.set_param("go_home",False)
+        
         
     # get the current joint angles of simulated robot
     def get_current_sim_joints(self, ur5_type = "sim"):
@@ -164,11 +186,16 @@ class PNP:
 
     # wait till trajectory is finished
     def wait_till_finish_traj(self, goal_joints, thresh=1e-3, ur5_type="sim"):
+        self.control_timeout = 0
         while not np.allclose(self.current_joints,[jnt  for jnt in goal_joints],atol=thresh):
                 # print(self.current_joints,goal_joints)
                 self.current_joints = self.get_current_sim_joints(ur5_type=ur5_type)
                 # print("waiting to reach goal")
                 rospy.sleep(0.1)
+                self.control_timeout += 1
+                # if self.control_timeout >= self.control_buffer:
+                #     return True
+                #     break
         return True
     
     
@@ -181,12 +208,11 @@ class PNP:
         
         if not rospy.get_param("move_to_next_primitive",default=False):
             return
-        else:
-            rospy.set_param("move_to_next_primitive",False)
+        
             
         try:
             self.trans = np.copy(self.goals[goal_id])
-            print(self.goals[goal_id])
+            print("Going to goal id: {} and pose: {}".format(goal_id,self.goals[goal_id]))
             # Go over the object
             self.trans[-1] = 0.25
             goal_joints = self.get_ik()
@@ -194,8 +220,13 @@ class PNP:
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
             
+            self.ur5_control_msg.values = goal_joints
+            self.ur5_control_msg.time  =  1.5
+
+            self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
             print("Going over the object")
-            self.wait_till_finish_traj(goal_joints)
+            self.wait_till_finish_traj(goal_joints,ur5_type="real")
+            # self.wait_till_finish_traj(goal_joints)
             
             
             # Go to the object
@@ -204,12 +235,19 @@ class PNP:
             # publish first on simulated ur5
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
-                
+            
+            rospy.sleep(rospy.get_param("delay",0.2))
+            self.ur5_control_msg.values = goal_joints
+            self.ur5_control_msg.time  =  0.5
+            self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
+
             print("Going to the object")
-            self.wait_till_finish_traj(goal_joints)
+            self.wait_till_finish_traj(goal_joints,ur5_type="real")
+            # self.wait_till_finish_traj(goal_joints)
 
             # Grasp object
-            self.grasp(value = self.close_distance)
+            self.grasp(value = rospy.get_param("grasp_distance",default=0))
+            # self.grasp(value = self.close_distance)
             
             # Go over the object
             self.trans[-1] = 0.25
@@ -218,8 +256,14 @@ class PNP:
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
             
+            rospy.sleep(rospy.get_param("delay",0.2))
+            self.ur5_control_msg.values = goal_joints
+            self.ur5_control_msg.time  =  0.5
+            self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
+
             print("Going over the object")
-            self.wait_till_finish_traj(goal_joints)
+            self.wait_till_finish_traj(goal_joints,ur5_type="real")
+            # self.wait_till_finish_traj(goal_joints)
 
 
             # Go to the final way point
@@ -233,9 +277,16 @@ class PNP:
             # publish first on simulated ur5
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
-                
+
+            rospy.sleep(rospy.get_param("delay",0.2))
+
+            self.ur5_control_msg.values = goal_joints
+            self.ur5_control_msg.time  =  1.5
+            self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
+
             print("Going to the final way point")
-            self.wait_till_finish_traj(goal_joints)
+            self.wait_till_finish_traj(goal_joints,ur5_type="real")
+            # self.wait_till_finish_traj(goal_joints)
         
             # Place the object
             self.trans[0] = -0.35
@@ -248,8 +299,14 @@ class PNP:
             # publish first on simulated ur5
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)     
+            
+            self.ur5_control_msg.values = goal_joints
+            self.ur5_control_msg.time  =  0.8
+            self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
+
             print("Going to place the object")
-            self.wait_till_finish_traj(goal_joints)
+            self.wait_till_finish_traj(goal_joints,ur5_type="real")
+            # self.wait_till_finish_traj(goal_joints)
             
             
             # De-grasp the object
@@ -268,9 +325,15 @@ class PNP:
             for i,jnt in enumerate(goal_joints):
                 self.ur5_joint_publisher[i].publish(jnt)
             
+            self.ur5_control_msg.values = goal_joints
+            self.ur5_control_msg.time  =  0.8
+            self.real_ur5_joint_publisher_1.publish(self.ur5_control_msg)
+
+            self.wait_till_finish_traj(goal_joints,ur5_type="real")
         except KeyError:
             print("Goal not found for goal id: {}".format(goal_id))
 
+        rospy.set_param("move_to_next_primitive",False)
 
 
 if  __name__ == '__main__':
