@@ -1,5 +1,7 @@
 from re import L
 import rospy
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
 import random
 import numpy as np
 import cv2
@@ -39,7 +41,7 @@ def save_data(pattern_img, robot_goals, time_elapsed, exp_type, subject_name):
 
     cv2.imwrite(pattern_filename,pattern)
     np.savetxt(robot_goals_filename,robot_goals,comments="Robot goal ids")
-    np.savetxt(time_filename,np.array([time_elapsed],dtype=np.int32),comments="Execution time for sub experiment (nano seconds)")
+    np.savetxt(time_filename,np.array([time_elapsed]),comments="Execution time for sub experiment (nano seconds)")
 
 # def counter():
 #     for
@@ -48,11 +50,14 @@ if __name__ == '__main__':
 
 
     parser =  argparse.ArgumentParser()
-    parser.add_argument("--subject_name","-sm",type=str,default="shubham")
+    parser.add_argument("--subject_name","-sn",type=str,default="shubham")
     parser.add_argument("--delay","-d",type=float,default="0.2")
     args = parser.parse_args()
     
     rospy.init_node("testing")
+
+    global img_publisher
+    img_publisher = rospy.Publisher("pattern_image",Image,queue_size=1)
     global ur5_intpro_dir
     ur5_intpro_dir = rospkg.RosPack().get_path("ur5_intpro")
     goal_id = np.array([[5,4,3,2,1,0],
@@ -68,6 +73,10 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         try:
             cv2.imshow("pattern",pattern)
+
+            img_msg = CvBridge().cv2_to_imgmsg(pattern,encoding="bgr8")
+            img_publisher.publish(img_msg)
+
             key = cv2.waitKey(1)
             if key == ord('n'):
                 pattern, robot_goals = generate_pattern(goal_id)
@@ -87,16 +96,16 @@ if __name__ == '__main__':
                 rospy.set_param("do_render",True)
                 rospy.set_param("show_shadow",True)
 
-            if rospy.get_param("show_shadow") and rospy.get_param("render_all") and rospy.get_param("do_render"):
+            if rospy.get_param("show_shadow",default=False) and rospy.get_param("render_all",default=False) and rospy.get_param("do_render",default=False):
                 exp_type = "dual_mode"
 
-            elif rospy.get_param("show_shadow") and not rospy.get_param("render_all") and rospy.get_param("do_render"):
+            elif rospy.get_param("show_shadow",default=False) and not rospy.get_param("render_all",default=False) and rospy.get_param("do_render",default=False):
                 exp_type = "shadow_mode"
 
-            elif not rospy.get_param("show_shadow") and rospy.get_param("render_all") and rospy.get_param("do_render"):
+            elif not rospy.get_param("show_shadow",default=False) and rospy.get_param("render_all",default=False) and rospy.get_param("do_render",default=False):
                 exp_type = "highlight_mode"
             
-            elif not rospy.get_param("do_render"):
+            elif not rospy.get_param("do_render",default=False):
                 exp_type = "no_mode"
 
             if key == ord('g'):
@@ -130,15 +139,40 @@ if __name__ == '__main__':
                         else:
                             print("waiting\r")
                             tmp += 1
-                    
+        
+            if rospy.get_param("start_user_exp",default=False):
+                print("Listened to rosparam over server, Starting experiment!!!")
+                t1 = rospy.Time().now().to_nsec()
+                rospy.set_param("delay",args.delay)
+                rospy.set_param("goal_ids",[int(g) for g in robot_goals])
+                for goal in robot_goals:
+                    rospy.set_param("goal_id",int(goal))
+                    rospy.set_param("move_to_next_primitive",True)
+                    tmp = 0
+                    while rospy.get_param("move_to_next_primitive"):
+                        if tmp > 0:
+                            continue
+                        else:
+                            print("waiting\r")
+                            tmp += 1
+                rospy.set_param("start_user_exp",False)
             
-            if key == ord('f'):
+            if rospy.get_param("stop_user_exp",default=False):
                 t2 = rospy.Time().now().to_nsec()
                 global time_elapsed
                 time_elapsed = t2 - t1
-                save_data(pattern, robot_goals, time_elapsed, exp_type, subject_name=args.subject_name)
+                save_data(pattern, robot_goals, t2 - t1, exp_type, subject_name=args.subject_name)
                 print("Total_time elapsed in experiment: {}".format(t2-t1))
+                rospy.set_param("stop_user_exp",False)
+                
+            # if key == ord('f'):
+            #     t2 = rospy.Time().now().to_nsec()
+            #     time_elapsed = t2 - t1
+            #     save_data(pattern, robot_goals, time_elapsed, exp_type, subject_name=args.subject_name)
+            #     print("Total_time elapsed in experiment: {}".format(t2-t1))
 
-            rospy.sleep(0.10)
-        except  KeyboardInterrupt:
+            if key == ord('q'):
+                break
+            rospy.sleep(0.01)
+        except  KeyboardInterrupt or CvBridgeError:
             print("Shutting down!")

@@ -2,7 +2,6 @@
 
 from xml.etree.ElementTree import parse
 import numpy as np
-from sklearn import compose
 import kdl_parser_py.urdf
 import PyKDL as KDL
 import rospkg
@@ -268,7 +267,7 @@ class Custom_UR5_KDL:
                 self.goal_x = current_goal[0] #0.6
                 self.goal_y = current_goal[1] #0.0
                 self.goal_z = 0.25 #0.25
-                # self.ur5_control_msg.time = 1
+                self.ur5_control_msg.time = 1
 
             
             elif rospy.get_param("go_to_object") and not rospy.get_param("go_over_object"):
@@ -276,7 +275,7 @@ class Custom_UR5_KDL:
                 self.goal_x = current_goal[0]#0.6
                 self.goal_y = current_goal[1]#0.0
                 self.goal_z = current_goal[2]#0.1
-                # self.ur5_control_msg.time = 0.5
+                self.ur5_control_msg.time = 1
                 
             elif rospy.get_param("go_to_midhome"):
                 print("Going to midhome")
@@ -294,7 +293,7 @@ class Custom_UR5_KDL:
                 else:
                     self.goal_y = -0.4
                 self.goal_z = 0.25
-                # self.ur5_control_msg.time = 1
+                self.ur5_control_msg.time = 1
                 
             elif rospy.get_param("place_object"):
                 print("Placing the object")
@@ -371,7 +370,7 @@ class Custom_UR5_KDL:
             print("!!!!! Publishing on real ur5 robot !!!!!")
             if not rospy.get_param("finished_traj"):
                 self.ur5_control_msg.values = joints
-                rospy.sleep(rospy.get_param("shadow_delay",default=0.1))
+                rospy.sleep(rospy.get_param("shadow_delay",default=0.5))
                 self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
                 rospy.set_param("move_to_next_primitive",False)
                 self.ur5_control_timeout = 0
@@ -492,8 +491,8 @@ if __name__ == '__main__':
             print("running node")  
             kdl_goal_joints = ur5_kdl.get_ik(enable_rot=True)
             
-            if rospy.get_param("use_ds4_gripper",default=False):
-                rospy.set_param("grasp_distance",float(ur5_kdl.grasp_value))
+            # if rospy.get_param("use_ds4_gripper",default=False):
+            rospy.set_param("grasp_distance",float(ur5_kdl.grasp_value))
             
             ur5_kdl.grasp(value=rospy.get_param("grasp_distance"))
             print("cartesian goals: {}".format([ur5_kdl.goal_x, ur5_kdl.goal_y, ur5_kdl.goal_z]))
