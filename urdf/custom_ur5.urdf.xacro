@@ -159,7 +159,10 @@
 <link name="fake_end_effector_link">
     <visual>
     <geometry>
-      <box size="0.01 0.01 0.01"/>
+      <box size="0.06 0.06 0.06"/>
+      <!-- <mesh filename="package://ur5_intpro/meshes/visualize.stl" /> -->
+      <!-- <mesh filename="package://ur5_intpro/meshes/visualize.dae" /> -->
+      <!-- <box size="0.01 0.01 0.01"/> -->
     </geometry>
     <origin rpy="0 0 0" xyz="0 0 0"/>
     <material name="red"/>
@@ -172,11 +175,20 @@
   </collision>
   </link>
   <joint name="fake_end_effector_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="0.145 0 0"/>
+    <origin rpy="0 0 0" xyz="0.145 0.0 0.0"/>
     <!-- <origin rpy="0 0 0" xyz="0 0.1 0"/> -->
     <!-- <parent link="J6"/> -->
     <parent link="robotiq_85_base_link"/>
     <child link="fake_end_effector_link"/>
   </joint>
 
+
+<material name="orange">
+    <color rgba="${255/255} ${108/255} ${10/255} 1.0"/>
+</material>
+    <gazebo reference="fake_end_effector_link">
+    <mu1>0.9</mu1>
+    <mu2>0.9</mu2>
+    <material>Gazebo/Orange</material>
+  </gazebo>
 </robot>

@@ -1,5 +1,7 @@
 #! /usr/bin/env python3
 
+import enum
+from pickletools import read_stringnl_noescape_pair
 from xml.etree.ElementTree import parse
 import numpy as np
 import kdl_parser_py.urdf
@@ -68,9 +70,9 @@ class ROBOT_PRIMITIVES:
         self.pitch    = np.deg2rad(self.general_params["ik_goal"]["pitch"])
         self.roll     = np.deg2rad(self.general_params["ik_goal"]["roll"])
         
-        self.sim_ur5_joint_publisher = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
-        self.real_ur5_joint_publisher   = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
-        
+        self.sim_ur5_joint_publisher  = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
+        self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
+        self.r2fg_control_publisher   = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
         # self.goals = self.general_params["goals"]
         print("Generating goals!!!!!")
         self.goals = self.generate_goals()
@@ -107,6 +109,11 @@ class ROBOT_PRIMITIVES:
         sim_joints[4] = self.joint_state_msg.position[5]
         sim_joints[5] = self.joint_state_msg.position[6]
         return sim_joints
+    
+    def get_time_delay(self):
+        time_delay = rospy.get_param("time_delay",default=1) 
+        return time_delay
+    
     def reached_goal(self,goal_joints,real=False,rtol=1e-3,atol=1e-3):
         if real:
             if np.allclose(self.ur5_joints.positions,goal_joints, rtol=rtol, atol=atol):
@@ -147,13 +154,16 @@ class ROBOT_PRIMITIVES:
     def run_thread(self):
         # firstly home robot if not
         self.go_home()
+        self.r2fg_msg.position = 0
+        self.r2fg_msg.force = 100
+        self.r2fg_msg.speed = 255
+        self.r2fg_control_publisher.publish(self.r2fg_msg)
         print("Running main Thread!!!")
         while not rospy.is_shutdown():
             try:
                 print("runing main thread")
-                # self.get_ik_sol()
                 self.ur5_publisher()
-                self.goal_x += 0.005
+                break
                 rospy.sleep(5)
             except Exception as e:
                 print(e)
@@ -223,31 +233,74 @@ class ROBOT_PRIMITIVES:
         return kdl_goal_joints
         
     def ur5_publisher(self):        
-        np.random.shuffle(self.goals)
-        for g in self.goals:
-            self.goal_x = g[0]
-            self.goal_y = g[1]
-            self.goal_z = g[2]
-            sim_goal_joints        = self.get_ik_sol(yaw_offset=0)
-            
-            print(f"goal xyz: {self.goal_x, self.goal_y, self.goal_z}")
-            print(f"goal rpy: {self.roll, self.pitch, self.yaw}")
-            real_goal_joints       = self.get_ik_sol(yaw_offset=np.pi/2, real=True)
-            self.ur5_control_msg.values = real_goal_joints
-            for i, gj in enumerate(sim_goal_joints):
-                self.sim_ur5_joint_publisher[i].publish(gj)
-            self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-           
-            rospy.sleep(1)
-            while not rospy.is_shutdown():
-                if not self.reached_goal(goal_joints=real_goal_joints,real=True):
-                    continue
+        robot_goals = rospy.get_param("robot_goals",default=[])
+        if not robot_goals :
+            print("waiting for robot goals over parameter server")
+            return
+        all_goals = np.array(self.goals)
+        goals = np.take(all_goals,robot_goals,axis=0)
+        for idx,g in enumerate(goals):
+            waypoints = self.get_robot_waypoints(g)
+            for k,v in waypoints.items():
+                print(f"Going to {k}")                    
+                if k == "grasp" or k == "release":
+                    # self.r2fg_msg.position = 0
+                    self.r2fg_msg.position = v
+                    self.r2fg_msg.force = 100
+                    self.r2fg_msg.speed = 255
+                    self.r2fg_control_publisher.publish(self.r2fg_msg)
+                    rospy.sleep(0.5)
                 else:
-                    break
+                    self.goal_x = v[0]
+                    self.goal_y = v[1]
+                    self.goal_z = v[2]
+
+                    sim_goal_joints = self.get_ik_sol(yaw_offset=0)
+                    real_goal_joints = self.get_ik_sol(yaw_offset=np.pi/2, real=True)
+                    self.ur5_control_msg.values = real_goal_joints
+                    if k == "pick_up" or k == "pick_down":
+                        self.ur5_control_msg.time = 1
+                        time_delay = 0
+                    elif  k == "workspace" or k == "back":
+                        self.ur5_control_msg.time = 1.5
+                        time_delay = 0 if k == "workspace" else self.get_time_delay()
+                    else:
+                        self.ur5_control_msg.time = 2  
+                        time_delay = self.get_time_delay()
+                    for i, gj in enumerate(sim_goal_joints):
+                        self.sim_ur5_joint_publisher[i].publish(gj)
+
+                    rospy.sleep(time_delay)
+                    self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+                   
+                    while not rospy.is_shutdown():
+                        if not self.reached_goal(goal_joints=real_goal_joints,real=True):
+                            continue
+                        else:
+                            break     
+            print(f"Fineshed goal id: {robot_goals[idx]}...\n")
+        return 
     
+    def get_robot_waypoints(self,goal):
+        waypoints = {}
+        waypoints.update({"goal":goal})
+        pick_down = [goal[0],goal[1],0.10]
+        waypoints.update({"pick_down":pick_down})
+        waypoints.update({"grasp":int(155)})
+        pick_up = goal
+        waypoints.update({"pick_up":pick_up})        
+        back = [-0.10, 0.45*(1 if goal[1] >= 0 else -1),goal[2]]
+        # back = [-0.10, 0.25*(1 if np.random.rand() > 0.5 else -1),goal[-1]]
+        waypoints.update ({"back":back})
+        waypoints.update({"release":0})
+        workspace = [0.20, 0.45*(1 if goal[1] >= 0 else -1),goal[2]]
+        waypoints.update({"workspace":workspace})
+        
+        return waypoints
+        
     def generate_goals(self):
         ref_goal = np.load(os.path.join(self.package_path,"robot_goals",f"{1}.npy"))
-        ref_goal = compose([0.3,0.525,0.25], euler2mat(0,0,0),[1,1,1])
+        ref_goal = compose([0.25,0.525,0.25], euler2mat(0,0,0),[1,1,1])
         current_goal = ref_goal
         goals = []
         goals.append(ref_goal[0:3,-1])
@@ -258,14 +311,13 @@ class ROBOT_PRIMITIVES:
         for i in tqdm(range(3)):
             y_change = 0
             c_y_offset= 0.0
-            
             for j in range(6):
                 change_tf = compose([x_change,y_change,0],euler2mat(0,0,0),[1,1,1])
                 new_goal = np.matmul(ref_goal,change_tf)
                 goals.append(new_goal[0:3,-1])
                 y_change -= (0.20-c_y_offset) 
                 if j >= 2:
-                    c_y_offset += 0.02
+                    c_y_offset += 0.03
             x_change += 0.20
         return goals
     
