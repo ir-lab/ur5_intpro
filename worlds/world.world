@@ -444,15 +444,15 @@
       <!-- <pose>-0.8 -0.19 4.4 1.57 1.57 0</pose> -->
       <static>true</static>
       <link name="camera_link">
-      <visual name='downtop_visual'>
+      <visual name='topdown_visual'>
         <geometry>
           <box>
             <size>0.001 0.001 0.001</size>
           </box>
         </geometry>
       </visual>
-        <sensor type="depth" name="topdown_camera">
-          <update_rate>30</update_rate>
+        <sensor type="camera" name="topdown_camera">
+          <update_rate>100</update_rate>
           <visualize>true</visualize>
           <camera name="head">
             <horizontal_fov>1.3962634</horizontal_fov>
@@ -463,25 +463,25 @@
             </image>
             <clip>
               <near>0.02</near>
-              <far>1.92</far>
+              <far>15</far>
             </clip>
             <!-- <lens>
               <type>orthographic</type>
             </lens> -->
           </camera>
-          <plugin name="camera_controller" filename="libgazebo_ros_openni_kinect.so">
+          <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
             <baseline>0.2</baseline>
             <alwaysOn>false</alwaysOn>
-            <updateRate>30.0</updateRate>
+            <updateRate>100.0</updateRate>
             <cameraName>topdown_camera</cameraName>
             <imageTopicName>/topdown_camera/color/image_raw</imageTopicName>
             <cameraInfoTopicName>/topdown_camera/color/camera_info</cameraInfoTopicName>
-            <depthImageTopicName>/topdown_camera/depth/image_raw</depthImageTopicName>
-            <depthImageInfoTopicName>/topdown_camera/depth/camera_info</depthImageInfoTopicName>
-            <pointCloudTopicName>/topdown_camera/depth/points</pointCloudTopicName>
+            <!-- <depthImageTopicName>/topdown_camera/depth/image_raw</depthImageTopicName> -->
+            <!-- <depthImageInfoTopicName>/topdown_camera/depth/camera_info</depthImageInfoTopicName> -->
+            <!-- <pointCloudTopicName>/topdown_camera/depth/points</pointCloudTopicName> -->
             <frameName>frame</frameName>
-            <pointCloudCutoff>0.2</pointCloudCutoff>
-            <pointCloudCutoffMax>10.0</pointCloudCutoffMax>
+            <!-- <pointCloudCutoff>0.2</pointCloudCutoff> -->
+            <!-- <pointCloudCutoffMax>10.0</pointCloudCutoffMax> -->
             <distortionK1>0.00000001</distortionK1>
             <distortionK2>0.00000001</distortionK2>
             <distortionK3>0.00000001</distortionK3>

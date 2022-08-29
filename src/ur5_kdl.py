@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 from xml.etree.ElementTree import parse
 import numpy as np
@@ -21,152 +21,93 @@ import argparse
 from six.moves import queue
 import serial
 from ds4_mapper import DS4_Mapper
-
+from utils import ur5_intpro_utils
 
 class Custom_UR5_KDL:
-    
+    '''
+    Documents:
+        1)
+        2)
+    '''
     def __init__(self, pkg_name="ur5_intpro", init_delay=0.1, go_midhome=True):
+        
         rospy.init_node("ur5_kdl")
+        
         self.this_pkg_path = rospkg.RosPack().get_path(pkg_name)
-        
         self.rate = 5
-        self.joint_state_msg = JointState()
-        self.joy_msg      = Joy()
-        self.ur5_control_msg = ur5Control()
-        # self.ur5_control_msg.command = "speedj"
-        self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",default="movej") #"movej"
-        self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",default=np.pi/2) #np.pi/2.0
-        self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",default=np.pi/2) 
-        self.ur5_control_msg.time         = rospy.get_param("irl_robot_com_time",default=0)
         
+        # general params
+        self.general_params = ur5_intpro_utils.load_yaml(os.path.join(self.this_pkg_path,"config","general_params.yaml"))
+        
+        # init ros msgs
+        self.joint_state_msg = JointState()
+        self.joy_msg         = Joy()
+        self.ur5_control_msg = ur5Control()
+        self.ur5_matrix      = matrix()
+        self.ur5_rows        = rows()
+        self.ur5_rows.values = []
+        self.ur5_matrix.rows = self.ur5_rows
+        self.ur5_joints      = ur5Joints()
+        self.r2fg_msg        = gSimpleControl()
+        
+        self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",  default="movej") 
+        self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",     default=np.pi/2)
+        self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",      default=np.pi/2) 
+        self.ur5_control_msg.time         = rospy.get_param("irl_robot_com_time", default=0)
         self.ur5_control_msg.jointcontrol = True
         self.ur5_control_timeout = 0
 
-        self.ur5_matrix = matrix()
-        self.ur5_rows  = rows()
-        self.ur5_rows.values = []
-        self.ur5_matrix.rows = self.ur5_rows
-        self.ur5_joints = ur5Joints()
-        self.r2fg_msg = gSimpleControl()
+        rospy.Subscriber("/joint_states",JointState,self.joint_state_callback,buff_size=1)
+        rospy.Subscriber("/ur5/joints",ur5Joints,self.ur5_joints_callback)
+        rospy.Subscriber("/joy",Joy,self.joy_callback)
+        
+        
         # ds4 key mapper
         self.ds4_mapper = DS4_Mapper()
         self.enable_ds4 = False
-        self.limit_cart = 0.8
-        self.cart_step  = 0.02
+        self.limit_cart = self.general_params["limit_cart"]
+        self.cart_step  = self.general_params["cart_step"]
         
         # kdl setup 
-        self.urdf_path = os.path.join(self.this_pkg_path,"urdf/kdl_custom_ur5.urdf")
+        self.urdf_path = os.path.join(self.this_pkg_path,"urdf",self.general_params["kdl_urdf"])
         self.ur5_tf_chain = self.init_kdl()
         self.ur5_ik_solver =  KDL.ChainIkSolverPos_LMA(self.ur5_tf_chain, 1e-8 ,1000, 1e-6)
         # self.ur5_ik_solver =  KDL.ChainIkSolverPos_NR(Chain=self.ur5_tf_chain)
         
         # ik prameters
-
-        self.goal_x   = 0.2
-        self.goal_y   = 0.4
-        self.goal_z   = 0.35
+        self.goal_x   = self.general_params["ik_goal"]["x"]
+        self.goal_y   = self.general_params["ik_goal"]["y"]
+        self.goal_z   = self.general_params["ik_goal"]["z"]
+        self.yaw      = np.deg2rad(self.general_params["ik_goal"]["yaw"])
+        self.pitch    = np.deg2rad(self.general_params["ik_goal"]["pitch"])
+        self.roll     = np.deg2rad(self.general_params["ik_goal"]["roll"])
         # for vertical ee config keep yaw=0.0 pitch=np.pi and roll=0.0
         # for horizontal ee  config keep yaw=np.pi/2.0 pitch=0.0 roll=np.pi/2.0
         # self.yaw      = np.pi/2.0
         # self.pitch    = 0.0
-        # self.roll     = np.pi/2.0
-        self.yaw      = -np.pi 
-        self.pitch    = 0
-        self.roll     = -np.pi/2
-        self.rot_cont = True
-        
-        self.z_offset = 0.0
-        self.grasp_value = 0
+        # self.roll     = np.pi/2.0    
+        self.rot_cont        = True
+        self.z_offset        = 0.0
+        self.grasp_value     = 0
         self.sim_grasp_value = 0.0
-        self.grasp_steps = 8
+        self.grasp_steps     = 8
         
-        self.ur5_joint_publisher = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
-        self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
-        self.r2fg_control_publisher = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
-        # /finger_position_controller/command
+        self.ur5_joint_publisher        = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
+        self.real_ur5_joint_publisher   = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
+        self.r2fg_control_publisher     = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
         self.sim_r2fg_control_publisher = rospy.Publisher("/finger_position_controller/command",Float64,queue_size=10)
-        # self.real_ur5_joint_publisher = rospy.Publisher("/ur5/continuous_controller",matrix,queue_size=10)
-        self.pub_real_ur5 = False
+        # self.real_ur5_joint_publisher   = rospy.Publisher("/ur5/continuous_controller",matrix,queue_size=10)
+                
+        self.pub_real_ur5      = False
         self.pub_real_ur5_cont = False
-        rospy.Subscriber("/joint_states",JointState,self.joint_state_callback,buff_size=1)
-        rospy.Subscriber("/ur5/joints",ur5Joints,self.ur5_joints_callback)
-        rospy.Subscriber("/joy",Joy,self.joy_callback)
+             
         rospy.sleep(init_delay)
-        
         rospy.set_param("finished_subtask",True)
         rospy.set_param("grasp_distance",0)
         rospy.set_param("slide_object",False)
         rospy.set_param("move_to_next_primitive",False)
         
-        
-        # self.goals = {0:[0.50, 0.0, 0.08],
-        #               1:[0.50, 0.2, 0.08],
-        #               2:[0.50, 0.4, 0.08],
-        #               3:[0.50,-0.2, 0.08],
-        #               4:[0.50,-0.4, 0.08],
-        #               5:[0.25, 0.0, 0.08],
-        #               6:[0.25, 0.2, 0.08],
-        #               7:[0.25, 0.4, 0.08],
-        #               8:[0.25,-0.2, 0.08],
-        #               9:[0.25,-0.4, 0.08]       
-        #               }
-
-        # self.goals = {0:[0.6, -0.6, 0.08],
-        #               1:[0.6, -0.4, 0.08],
-        #               2:[0.6, -0.2, 0.08],
-        #               4:[0.6,  0.0, 0.08],     
-        #               5:[0.6,  0.2, 0.08],
-        #               6:[0.6,  0.4, 0.08],
-        #               7:[0.6,  0.6, 0.08],  
-        #               8:[0.35,  -0.6, 0.08],
-        #               9:[0.35,  -0.4, 0.08],
-        #               10:[0.35, -0.2, 0.08],
-        #               11:[0.35,  0.0, 0.08],  
-        #               12:[0.35,  0.2, 0.08],
-        #               13:[0.35,  0.4, 0.08],
-        #               14:[0.35,  0.6, 0.08],  
-        #               }
-
-        # self.goals = {0:[0.25,  0.25, 0.08],
-        #               1:[0.25,  0.15, 0.08],
-        #               2:[0.25,  0.05, 0.08],
-        #               3:[0.25, -0.10, 0.08],     
-        #               4:[0.25, -0.25, 0.08],     
-        #               5:[0.45,  0.25, 0.08],
-        #               6:[0.45,  0.15, 0.08],
-        #               7:[0.45,  0.05, 0.08],
-        #               8:[0.45, -0.10, 0.08],     
-        #               9:[0.45, -0.25, 0.08],  
-        #               10:[0.60,  0.25, 0.08],
-        #               11:[0.60,  0.15, 0.08],
-        #               12:[0.60,  0.05, 0.08],
-        #               13:[0.60, -0.10, 0.08],     
-        #               14:[0.60, -0.25, 0.08],  
-        #               }
-
-        
-        self.goals = {0:[0.30,  0.58, 0.08],
-                      1:[0.30,  0.38, 0.08],
-                      2:[0.30,  0.18, 0.08],
-                      3:[0.30, -0.02, 0.08],     
-                      4:[0.30, -0.22, 0.08],     
-                      5:[0.30, -0.40, 0.08],
-                      6: [0.46,  0.60, 0.08],
-                      7: [0.46,  0.40, 0.08],
-                      8: [0.46,  0.20, 0.08],     
-                      9: [0.46, -0.00, 0.08],  
-                      10:[0.46, -0.20, 0.08],
-                      11:[0.46, -0.40, 0.08],
-                      12:[0.64,  0.60, 0.08],
-                      13:[0.64,  0.40, 0.08],     
-                      14:[0.64,  0.20, 0.08],  
-                      15:[0.64, -0.00, 0.08],  
-                      16:[0.64, -0.20, 0.08],  
-                      17:[0.64, -0.40, 0.08],  
-                      }
-        
-        
-        
+        self.goals = self.general_params["goals"]
         rospy.set_param("goal_id",0)
         if go_midhome:
             self.init_midhome()
@@ -215,9 +156,6 @@ class Custom_UR5_KDL:
         for i, publisher in enumerate(self.ur5_joint_publisher):
             publisher.publish(midhome_joints[i])
             rospy.sleep(0.1)
-
-
-
         rospy.sleep(1)
         return True
     
@@ -233,7 +171,7 @@ class Custom_UR5_KDL:
     
     def grasp(self, value, force=255, speed = 255):
         if value==None:
-            print("Please provide grasp distance")
+            print("Please provide gripper closing distance")
             return
         if value > 0:
             print("Closing distance: {}".format(value))

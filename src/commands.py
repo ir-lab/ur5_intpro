@@ -68,6 +68,7 @@ if __name__ == '__main__':
     pattern, robot_goals = generate_pattern(goal_id)
     
     global t1
+    t1 = 0.0
     global exp_type
     
     while not rospy.is_shutdown():

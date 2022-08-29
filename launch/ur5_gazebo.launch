@@ -6,7 +6,8 @@
   
   <!-- startup simulated world -->
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
-    <arg name="world_name" default="$(find ur5_intpro)/worlds/world.world"/>
+    <arg name="world_name" default="$(find ur5_intpro)/worlds/icra_world.world"/>
+    <!-- <arg name="world_name" default="$(find ur5_intpro)/worlds/world.world"/> -->
     <arg name="paused" value="$(arg paused)"/>
     <arg name="gui" value="$(arg gui)"/>
   </include>
@@ -20,7 +21,7 @@
   <arg name="transmission_hw_interface" default="hardware_interface/PositionJointInterface" />
 
   <param unless="$(arg limited)" name="robot_description" command="$(find xacro)/xacro --inorder '$(find ur5_intpro)/urdf/custom_ur5.urdf.xacro' transmission_hw_interface:=$(arg transmission_hw_interface)" />
-  <param if="$(arg limited)" name="robot_description" command="$(find xacro)/xacro --inorder '$(find ur_description)/urdf/ur5_joint_limited_robot.urdf.xacro' transmission_hw_interface:=$(arg transmission_hw_interface)" />
+  <!-- <param if="$(arg limited)" name="robot_description" command="$(find xacro)/xacro inorder '$(find ur_description)/urdf/ur5_joint_limited_robot.urdf.xacro' transmission_hw_interface:=$(arg transmission_hw_interface)" /> -->
 
   <!-- push robot_description to factory and spawn robot in gazebo -->
   <node name="spawn_gazebo_model" pkg="gazebo_ros" type="spawn_model" args="-urdf -param robot_description -model robot -z 0.0" respawn="false" output="screen" />
@@ -34,7 +35,7 @@
   <!-- load other controllers -->
   <!-- <node name="ros_control_controller_manager" pkg="controller_manager" type="controller_manager" respawn="false" output="screen" args="load joint_group_position_controller" /> -->
 
-<rosparam command="load" file="$(find ur5_intpro)/config/ur5_controllers.yaml" />
+<!-- <rosparam command="load" file="$(find ur5_intpro)/config/ur5_controllers.yaml" />
 <node name="controller_spawner" pkg="controller_manager" type="spawner"                args="joint_0_position_controller 
                                                                                              joint_1_position_controller 
                                                                                              joint_2_position_controller 
@@ -47,7 +48,7 @@
 
 <node name="joy_node" pkg="joy" type="joy_node" output="screen">
  <param name="dev" value="/dev/input/js$(arg dev)" />
-</node>
+</node> -->
 
 <!-- <arg name="ur5_ip" default="10.218.100.220" /> -->
 <!-- <arg name="ur5_ip" default="10.218.100.220" />
