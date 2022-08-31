@@ -150,20 +150,20 @@ class ROBOT_PRIMITIVES:
         print("Home euler",euler)
         return
     
-    
-    def run_thread(self):
-        # firstly home robot if not
+    def init_robot(self):
         self.go_home()
         self.r2fg_msg.position = 0
         self.r2fg_msg.force = 100
         self.r2fg_msg.speed = 255
         self.r2fg_control_publisher.publish(self.r2fg_msg)
+        
+    
+    def run_thread(self):
         print("Running main Thread!!!")
         while not rospy.is_shutdown():
             try:
                 print("runing main thread")
                 self.ur5_publisher()
-                break
                 rospy.sleep(5)
             except Exception as e:
                 print(e)

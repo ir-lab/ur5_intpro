@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 import rospy
 from sensor_msgs.msg import Image
@@ -9,28 +9,39 @@ import os
 import rospkg
 
 
-
-
-
-
-
-def imageCallback(msg):
-    cv_image = CvBridge().imgmsg_to_cv2(msg,desired_encoding="bgr8")
-    cv2.imshow("Pattern",cv_image)
-    key = cv2.waitKey(1)
-    if key == ord("s"):
-        print("Starting experiment!")
-        rospy.set_param("stop_user_exp",False)
-        rospy.set_param("start_user_exp",True)
+class USER_INT:
+    def __init__(self) -> None:
+        rospy.init_node("user_interface")
+        
+        self.user_interface = Image()
+        rospy.Subscriber("/user_display",Image,self.imageCallback)
     
-    if key == 32:
-        rospy.set_param("start_user_exp",False)
-        print("Stopping the experiment")
-        rospy.set_param("stop_user_exp",True)
+    def imageCallback(self, msg) -> None:
+        self.user_interface = msg
+ 
+    def run_experiment(self):
+        try: 
+            if not self.user_interface.data:
+                print("Did not receive msg...")
+                return
+
+            cv_image = CvBridge().imgmsg_to_cv2(self.user_interface,desired_encoding="bgr8")
+            cv2.imshow("Experiment",cv_image) 
+            cv_key = cv2.waitKey(1)
+            if cv_key == 32: # space
+                print("Stopping experiment")
+                rospy.set_param("start_user_exp",False)
+            
+            if cv_key == 13: # enter
+                print("Starting experiment")
+                rospy.set_param("start_user_exp",True)
+        
+        except Exception as e:
+            print(f"Run error: {e}")
 
 if __name__ == '__main__':
     
-    rospy.init_node("user_commands")
-    
-    rospy.Subscriber("pattern_image",Image,imageCallback)
-    rospy.spin()
+    ui  =  USER_INT()
+    while not rospy.is_shutdown():
+        ui.run_experiment()
+        rospy.sleep(0.01)
