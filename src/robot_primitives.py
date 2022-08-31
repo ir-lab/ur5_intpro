@@ -345,7 +345,7 @@ class ROBOT_PRIMITIVES:
         for j in range(1,3):
             for rg in tmp_goals:
                 if j ==2:
-                    ref_goals.update({counter:[rg[0]+ (0.12*j), rg[1], rg[2]]})
+                    ref_goals.update({counter:[rg[0]+ (0.15*j), rg[1], rg[2]]})
                 else:
                     ref_goals.update({counter:[rg[0]+ (0.15*j), rg[1], rg[2]]})
                 counter += 1
