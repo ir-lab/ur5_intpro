@@ -25,6 +25,7 @@ class USER_INT:
                 print("Did not receive msg...")
                 return
 
+            print("wating for input...")
             cv_image = CvBridge().imgmsg_to_cv2(self.user_interface,desired_encoding="bgr8")
             cv2.imshow("Experiment",cv_image) 
             cv_key = cv2.waitKey(1)
@@ -37,7 +38,9 @@ class USER_INT:
                 print("Starting experiment")
                 rospy.set_param("start_user_exp",True)
                 rospy.set_param("stop_user_exp",False)
-                
+            
+            if cv_key == ord('n'):
+                rospy.set_param("reinit_goals",True)
         
         except Exception as e:
             print(f"Run error: {e}")

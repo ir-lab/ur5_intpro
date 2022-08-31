@@ -36,7 +36,10 @@ class ROBOT_PRIMITIVES:
         self.package_path = rospkg.RosPack().get_path("ur5_intpro")
         self.rate = 5
         self.general_params = ur5_intpro_utils.load_yaml(os.path.join(self.package_path,"config","general_params.yaml"))
-        
+        self.execution_time = 0
+        self.t1 = rospy.Time()
+        self.t2 = rospy.Time()
+        self.show_execution_time = False
          # init ros msgs
         self.joint_state_msg = JointState()
         self.joy_msg         = Joy()
@@ -157,14 +160,32 @@ class ROBOT_PRIMITIVES:
         self.r2fg_msg.speed = 255
         self.r2fg_control_publisher.publish(self.r2fg_msg)
         
+    def get_time(self):
+        return rospy.Time().now()
     
     def run_thread(self):
         print("Running main Thread!!!")
         while not rospy.is_shutdown():
             try:
                 print("runing main thread")
-                self.ur5_publisher()
-                rospy.sleep(5)
+                if rospy.get_param("start_user_exp",default=False):
+                    print("Starting the experiment")
+                    self.show_execution_time = False
+                    self.init_robot()
+                    self.t1 = self.get_time()
+                    self.ur5_publisher()
+                    rospy.set_param("start_user_exp",False)
+                    
+                if rospy.get_param("stop_user_exp",default=False):
+                    print("Stopping the experiment")
+                    self.show_execution_time = True
+                    self.t2  = rospy.Time().now()
+                    self.execution_time = (self.t2-self.t1) * 1e-9
+                    rospy.set_param("stop_user_exp",False)                
+                
+                if self.show_execution_time:
+                    print(f"Execution time: {self.execution_time} secs")
+                rospy.sleep(1)
             except Exception as e:
                 print(e)
     
@@ -234,18 +255,26 @@ class ROBOT_PRIMITIVES:
         
     def ur5_publisher(self):        
         robot_goals = rospy.get_param("robot_goals",default=[])
+
         if not robot_goals :
             print("waiting for robot goals over parameter server")
             return
-        all_goals = np.array(self.goals)
-        goals = np.take(all_goals,robot_goals,axis=0)
-        for idx,g in enumerate(goals):
+        
+        rf_goals = self.generate_goals()
+        # all_goals = np.array(self.goals)
+        # rf_goals = np.take(all_goals,robot_goals,axis=0)
+        
+        # for idx,g in enumerate(goals):
+        for i in range(len(robot_goals)):
+            g = rf_goals[robot_goals[i]]
+            print(f"going to goal id: {robot_goals[i]}...\n")
+            
             waypoints = self.get_robot_waypoints(g)
             for k,v in waypoints.items():
                 print(f"Going to {k}")                    
                 if k == "grasp" or k == "release":
-                    # self.r2fg_msg.position = 0
-                    self.r2fg_msg.position = v
+                    self.r2fg_msg.position = 0
+                    # self.r2fg_msg.position = v
                     self.r2fg_msg.force = 100
                     self.r2fg_msg.speed = 255
                     self.r2fg_control_publisher.publish(self.r2fg_msg)
@@ -278,7 +307,6 @@ class ROBOT_PRIMITIVES:
                             continue
                         else:
                             break     
-            print(f"Fineshed goal id: {robot_goals[idx]}...\n")
         return 
     
     def get_robot_waypoints(self,goal):
@@ -293,33 +321,66 @@ class ROBOT_PRIMITIVES:
         # back = [-0.10, 0.25*(1 if np.random.rand() > 0.5 else -1),goal[-1]]
         waypoints.update ({"back":back})
         waypoints.update({"release":0})
-        workspace = [0.20, 0.45*(1 if goal[1] >= 0 else -1),goal[2]]
+        workspace = [0.25, 0.45*(1 if goal[1] >= 0 else -1),goal[2]]
         waypoints.update({"workspace":workspace})
         
         return waypoints
         
     def generate_goals(self):
-        ref_goal = np.load(os.path.join(self.package_path,"robot_goals",f"{1}.npy"))
-        ref_goal = compose([0.25,0.525,0.25], euler2mat(0,0,0),[1,1,1])
-        current_goal = ref_goal
-        goals = []
-        goals.append(ref_goal[0:3,-1])
         
-        c_y_offset= 0.0
-        y_change = 0
-        x_change = 0
-        for i in tqdm(range(3)):
-            y_change = 0
-            c_y_offset= 0.0
-            for j in range(6):
-                change_tf = compose([x_change,y_change,0],euler2mat(0,0,0),[1,1,1])
-                new_goal = np.matmul(ref_goal,change_tf)
-                goals.append(new_goal[0:3,-1])
-                y_change -= (0.20-c_y_offset) 
-                if j >= 2:
-                    c_y_offset += 0.03
-            x_change += 0.20
-        return goals
+        # first six goals
+        ref_goals = {}
+        tmp_goals = []
+        for i in range(6):
+            tmp = np.load(os.path.join(self.package_path,"robot_goals",f"{i+1}.npy"))
+            x = tmp[1,-1]
+            y = -tmp[0,-1]
+            z = 0.25
+            ref_goals.update({(i+1):[x,y,z]})
+            tmp_goals.append([x,y,z])
+            print(x,y,z)
+        
+        
+        counter = 7
+        for j in range(1,3):
+            for rg in tmp_goals:
+                if j ==2:
+                    ref_goals.update({counter:[rg[0]+ (0.12*j), rg[1], rg[2]]})
+                else:
+                    ref_goals.update({counter:[rg[0]+ (0.15*j), rg[1], rg[2]]})
+                counter += 1
+        
+        # all_goals = ref_goals + all_goals
+
+        # print(all_goals)
+        # exit()
+                
+        # ref_goal = np.load(os.path.join(self.package_path,"robot_goals",f"{1}.npy"))
+        # ref_goal = compose([0.30,0.525,0.25], euler2mat(0,0,0),[1,1,1])
+        # current_goal = ref_goal
+        # goals = []
+        # goals.append(ref_goal[0:3,-1])
+        
+        # c_y_offset= 0.0
+        # y_change = 0
+        # x_change = 0
+        # for i in tqdm(range(3)):
+        #     y_change = 0
+        #     c_y_offset= 0.0
+        #     for j in range(6):
+        #         change_tf = compose([x_change,y_change,0],euler2mat(0,0,0),[1,1,1])
+        #         new_goal = np.matmul(ref_goal,change_tf)
+        #         goals.append(new_goal[0:3,-1])
+        #         # if j >= 4 :
+        #         #     c_y_offset += 0.00
+                    
+        #         if j >= 3:
+        #             c_y_offset -= 0.0
+        #         y_change -= (0.20 + c_y_offset) 
+                
+        #     x_change += 0.18
+        # return goals
+        return ref_goals
     
     def save_robot_goals(self):
         while not rospy.is_shutdown():
@@ -328,12 +389,13 @@ class ROBOT_PRIMITIVES:
                 print("saving goal......")
                 goal_id = rospy.get_param("get_goal_id",default=0)
                 print(f"saving goal {goal_id}")
-                _,_,tf_mat = self.get_fk_frame(joints=self.ur5_joints.positions)
+                _,pose,tf_mat = self.get_fk_frame(joints=self.ur5_joints.positions)
+                print(f"pose: {pose}")
                 goal_file = os.path.join(self.package_path,"robot_goals",f"{goal_id}.npy")
                 np.save(goal_file,tf_mat)
                 rospy.set_param("save_robot_goal",False)
                 rospy.sleep(2)
-            rospy.sleep(1)
+            rospy.sleep(0.1)
             
             
     def __del__(self):
