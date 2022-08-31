@@ -30,11 +30,14 @@ class USER_INT:
             cv_key = cv2.waitKey(1)
             if cv_key == 32: # space
                 print("Stopping experiment")
+                rospy.set_param("stop_user_exp",True)
                 rospy.set_param("start_user_exp",False)
             
             if cv_key == 13: # enter
                 print("Starting experiment")
                 rospy.set_param("start_user_exp",True)
+                rospy.set_param("stop_user_exp",False)
+                
         
         except Exception as e:
             print(f"Run error: {e}")
