@@ -15,6 +15,7 @@ ur5:
 
 # KDL params
 kdl_urdf:  'custom_ur5.urdf' # assuming file is in urdf directory
+# kdl_urdf:  'custom_ur5.urdf' # assuming file is in urdf directory
 # kdl_urdf:  'kdl_custom_ur5_1.urdf' # assuming file is in urdf directory
 # kdl_urdf:  'kdl_custom_ur5.urdf' # assuming file is in urdf directory
 ik_goal:

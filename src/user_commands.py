@@ -12,6 +12,9 @@ import rospkg
 class USER_INT:
     def __init__(self) -> None:
         rospy.init_node("user_interface")
+        rospy.set_param("start_user_exp",False)
+        rospy.set_param("stop_user_exp",False)
+        rospy.set_param("go_home",False)
         
         self.user_interface = Image()
         rospy.Subscriber("/user_display",Image,self.imageCallback)
@@ -34,13 +37,17 @@ class USER_INT:
                 rospy.set_param("stop_user_exp",True)
                 rospy.set_param("start_user_exp",False)
             
-            if cv_key == 13: # enter
+            elif cv_key == 13: # enter
                 print("Starting experiment")
                 rospy.set_param("start_user_exp",True)
                 rospy.set_param("stop_user_exp",False)
             
+            elif cv_key == ord('h'):
+                rospy.set_param("go_home",True)
+                
             if cv_key == ord('n'):
-                rospy.set_param("reinit_goals",True)
+                # rospy.set_param("reinit_goals",True)
+                rospy.set_param("new_mode",True)
         
         except Exception as e:
             print(f"Run error: {e}")

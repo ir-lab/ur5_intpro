@@ -168,23 +168,37 @@ class ROBOT_PRIMITIVES:
         while not rospy.is_shutdown():
             try:
                 print("runing main thread")
-                if rospy.get_param("start_user_exp",default=False):
-                    print("Starting the experiment")
-                    self.show_execution_time = False
+                
+                if rospy.get_param("go_home"):
                     self.init_robot()
+                    rospy.set_param("go_home",False)
+                
+                if rospy.get_param("start_user_exp"):
+                    rospy.set_param("start_user_exp",False)                                    
+                    print("Starting the experiment")
+                    rospy.set_param("stop_saving",False)
+                    self.show_execution_time = False
                     self.t1 = self.get_time()
                     self.ur5_publisher()
-                    rospy.set_param("start_user_exp",False)
+                    # rospy.set_param("start_user_exp",False)
                     
-                if rospy.get_param("stop_user_exp",default=False):
+                if rospy.get_param("stop_user_exp"):
+                    rospy.set_param("stop_user_exp",False)
                     print("Stopping the experiment")
                     self.show_execution_time = True
                     self.t2  = rospy.Time().now()
                     self.execution_time = (self.t2-self.t1) * 1e-9
-                    rospy.set_param("stop_user_exp",False)                
                 
                 if self.show_execution_time:
+                    rospy.set_param("stop_saving",True)
                     print(f"Execution time: {self.execution_time} secs")
+                    self.show_execution_time = False
+                
+                print(rospy.get_param("stop_saving"))
+                # else:
+                #     rospy.set_param("stop_saving",False)
+                    
+                    
                 rospy.sleep(1)
             except Exception as e:
                 print(e)
@@ -301,7 +315,6 @@ class ROBOT_PRIMITIVES:
 
                     rospy.sleep(time_delay)
                     self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-                   
                     while not rospy.is_shutdown():
                         if not self.reached_goal(goal_joints=real_goal_joints,real=True):
                             continue
