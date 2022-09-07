@@ -30,7 +30,7 @@ class USER_INT:
 
             print("wating for input...")
             cv_image = CvBridge().imgmsg_to_cv2(self.user_interface,desired_encoding="bgr8")
-            cv2.imshow("Experiment",cv_image) 
+            cv2.imshow("Experiment",cv2.resize(cv_image,(1000,500))) 
             cv_key = cv2.waitKey(1)
             if cv_key == 32: # space
                 print("Stopping experiment")

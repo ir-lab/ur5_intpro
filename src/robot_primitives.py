@@ -302,13 +302,13 @@ class ROBOT_PRIMITIVES:
                     real_goal_joints = self.get_ik_sol(yaw_offset=np.pi/2, real=True)
                     self.ur5_control_msg.values = real_goal_joints
                     if k == "pick_up" or k == "pick_down":
-                        self.ur5_control_msg.time = 1
+                        self.ur5_control_msg.time = 0.5
                         time_delay = 0
                     elif  k == "workspace" or k == "back":
-                        self.ur5_control_msg.time = 1.5
+                        self.ur5_control_msg.time = 1
                         time_delay = 0 if k == "workspace" else self.get_time_delay()
                     else:
-                        self.ur5_control_msg.time = 2  
+                        self.ur5_control_msg.time = 1
                         time_delay = self.get_time_delay()
                     for i, gj in enumerate(sim_goal_joints):
                         self.sim_ur5_joint_publisher[i].publish(gj)
@@ -346,7 +346,11 @@ class ROBOT_PRIMITIVES:
         tmp_goals = []
         for i in range(6):
             tmp = np.load(os.path.join(self.package_path,"robot_goals",f"{i+1}.npy"))
-            x = tmp[1,-1]
+            if i == 3 or i == 5:
+                x = tmp[1,-1]-0.02
+                
+            else:
+                x = tmp[1,-1]
             y = -tmp[0,-1]
             z = 0.25
             ref_goals.update({(i+1):[x,y,z]})
