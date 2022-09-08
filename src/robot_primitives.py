@@ -287,8 +287,8 @@ class ROBOT_PRIMITIVES:
             for k,v in waypoints.items():
                 print(f"Going to {k}")                    
                 if k == "grasp" or k == "release":
-                    self.r2fg_msg.position = 0
-                    # self.r2fg_msg.position = v
+                    # self.r2fg_msg.position = 0
+                    self.r2fg_msg.position = v
                     self.r2fg_msg.force = 100
                     self.r2fg_msg.speed = 255
                     self.r2fg_control_publisher.publish(self.r2fg_msg)
@@ -302,13 +302,14 @@ class ROBOT_PRIMITIVES:
                     real_goal_joints = self.get_ik_sol(yaw_offset=np.pi/2, real=True)
                     self.ur5_control_msg.values = real_goal_joints
                     if k == "pick_up" or k == "pick_down":
-                        self.ur5_control_msg.time = 0.5
+                        self.ur5_control_msg.time = 0.6
                         time_delay = 0
                     elif  k == "workspace" or k == "back":
-                        self.ur5_control_msg.time = 1
+                        self.ur5_control_msg.time = 1.0
                         time_delay = 0 if k == "workspace" else self.get_time_delay()
+                        # time_delay = 0 if k == "workspace" else self.get_time_delay()
                     else:
-                        self.ur5_control_msg.time = 1
+                        self.ur5_control_msg.time = 1.2
                         time_delay = self.get_time_delay()
                     for i, gj in enumerate(sim_goal_joints):
                         self.sim_ur5_joint_publisher[i].publish(gj)
@@ -325,7 +326,7 @@ class ROBOT_PRIMITIVES:
     def get_robot_waypoints(self,goal):
         waypoints = {}
         waypoints.update({"goal":goal})
-        pick_down = [goal[0],goal[1],0.10]
+        pick_down = [goal[0],goal[1],0.09]
         waypoints.update({"pick_down":pick_down})
         waypoints.update({"grasp":int(155)})
         pick_up = goal
@@ -352,7 +353,7 @@ class ROBOT_PRIMITIVES:
             else:
                 x = tmp[1,-1]
             y = -tmp[0,-1]
-            z = 0.25
+            z = 0.28
             ref_goals.update({(i+1):[x,y,z]})
             tmp_goals.append([x,y,z])
             print(x,y,z)
