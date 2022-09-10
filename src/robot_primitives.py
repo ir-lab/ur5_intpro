@@ -114,7 +114,7 @@ class ROBOT_PRIMITIVES:
         return sim_joints
     
     def get_time_delay(self):
-        time_delay = rospy.get_param("time_delay",default=1) 
+        time_delay = rospy.get_param("time_delay",default=0.5) 
         return time_delay
     
     def reached_goal(self,goal_joints,real=False,rtol=1e-3,atol=1e-3):
@@ -301,16 +301,27 @@ class ROBOT_PRIMITIVES:
                     sim_goal_joints = self.get_ik_sol(yaw_offset=0)
                     real_goal_joints = self.get_ik_sol(yaw_offset=np.pi/2, real=True)
                     self.ur5_control_msg.values = real_goal_joints
+                    
+                    current_mode = rospy.get_param("current_mode")
                     if k == "pick_up" or k == "pick_down":
                         self.ur5_control_msg.time = 0.6
-                        time_delay = 0
+                        time_delay = 0 
                     elif  k == "workspace" or k == "back":
-                        self.ur5_control_msg.time = 1.0
+                        self.ur5_control_msg.time = 1.5
+                        # if current_mode == "noproj_mode":
+                        #     time_delay = 0
+                        # else:
+                        #     time_delay = 0 if k == "workspace" else self.get_time_delay()
                         time_delay = 0 if k == "workspace" else self.get_time_delay()
-                        # time_delay = 0 if k == "workspace" else self.get_time_delay()
                     else:
-                        self.ur5_control_msg.time = 1.2
-                        time_delay = self.get_time_delay()
+                        self.ur5_control_msg.time = 1.5
+                        # if current_mode == "noproj_mode":
+                        #     time_delay = 0
+                        # else:
+                        #     time_delay =  self.get_time_delay()
+                        time_delay =  self.get_time_delay()
+                            
+                            
                     for i, gj in enumerate(sim_goal_joints):
                         self.sim_ur5_joint_publisher[i].publish(gj)
 
