@@ -53,7 +53,7 @@ def pick_and_place_object(object_id=0, flag=True):
     # Grasp the object
     rospy.set_param("grasp_distance",CLOSING_DISTANCE)
 
-    # Go overt the object
+    # Go over the object
     rospy.set_param("go_over_object",True)
     rospy.set_param("move_to_next_primitive",True)
     while not rospy.get_param("finished_traj"):

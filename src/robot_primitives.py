@@ -18,6 +18,8 @@ import threading
 import os
 import sys
 import time
+import socket
+import struct
 import threading
 import argparse
 from six.moves import queue
@@ -25,13 +27,14 @@ import serial
 from ds4_mapper import DS4_Mapper
 from utils import ur5_intpro_utils
 from tqdm import tqdm
+import rosbag
+import datetime
 
 class ROBOT_PRIMITIVES:
     
     
     def __init__(self):
         rospy.init_node("ur5_kdl")
-        
         
         self.package_path = rospkg.RosPack().get_path("ur5_intpro")
         self.rate = 5
@@ -40,7 +43,11 @@ class ROBOT_PRIMITIVES:
         self.t1 = rospy.Time()
         self.t2 = rospy.Time()
         self.show_execution_time = False
-         # init ros msgs
+        rospy.set_param("suction_gripper",False)
+        rospy.set_param("go_home",True)
+        # init ros msgs
+        self.g_msg = Float64()
+
         self.joint_state_msg = JointState()
         self.joy_msg         = Joy()
         self.ur5_control_msg = ur5Control()
@@ -55,8 +62,6 @@ class ROBOT_PRIMITIVES:
         rospy.Subscriber("/joint_states",JointState,self.joint_state_callback,buff_size=1)
         rospy.Subscriber("/ur5/joints",ur5Joints,self.ur5_joints_callback)
         rospy.Subscriber("/joy",Joy,self.joy_callback)
-        
-        
         
         # kdl setup 
         self.urdf_path     = os.path.join(self.package_path,"urdf",self.general_params["kdl_urdf"])
@@ -76,14 +81,117 @@ class ROBOT_PRIMITIVES:
         self.sim_ur5_joint_publisher  = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
         self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
         self.r2fg_control_publisher   = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
+        
         # self.goals = self.general_params["goals"]
         print("Generating goals!!!!!")
         self.goals = self.generate_goals()
         self.rosthread = self.rospy_thread()
+        # self.socket_thread = threading.Thread(target=self.run_socket_packets,args=())
+        # self.socket_thread.start()
         print("sleeping for a second.....")
         rospy.sleep(1)
         
+    def decode_press(self,data):
+        return struct.unpack('<f', data)[0]
 
+   
+    
+    def run_socket_packets(self):
+        SERV = '192.168.1.124'
+        HOST = '192.168.1.148'
+        PORT = 15000
+
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        self.sock.bind((HOST, PORT))
+        count = 0
+        motor = b'0'
+        self.sock.sendto(b'OK', (SERV,PORT))
+        print('triggered')
+        p = rospy.Publisher("gripper_voltage",Float64,queue_size=1)
+        electrodes = [rospy.Publisher(f"/electrode_{e}",Float64,queue_size=1) for e in range(8)]
+        elctrodes_array = rospy.Publisher("/electrodes_voltage",Float64MultiArray,queue_size=1)
+        # filename = f"/share/ikemoto_data/suction_gripper_data_{self.get_timestamp()}.bag"
+        # bag  = rosbag.Bag(filename,'w')
+            # rospy.set_param("record_bag",False)
+            
+        while not rospy.is_shutdown():
+            # print("Running loop")
+           
+            msg, address = self.sock.recvfrom(8192)
+            vols = self.decode_voltage(msg[:16])
+            prss = self.decode_press(msg[-4:])
+            self.sock.sendto(motor,(SERV,PORT))
+            suction_griper = rospy.get_param("suction_gripper",default=False)
+            
+            pressure_msg = Float64()
+            pressure_msg.data = prss
+            # bag.write('gripper_voltage',pressure_msg)
+            
+            # print(len(vols))
+            # print(vols)
+            for idx,v in enumerate(vols):
+                e_msg = Float64()
+                e_msg.data = v
+                electrodes[idx].publish(e_msg)
+                # bag.write(f"electorde_{idx}",e_msg)
+                rospy.sleep(0.001)
+                
+                
+            # print(prss)
+            msg = Float64()
+            msg.data = float(prss)
+            p.publish(msg)
+            e_vols = Float64MultiArray()
+            e_vols.data = vols
+            elctrodes_array.publish(e_vols)
+            # print("motor and count: ", motor, count)
+            # if count == 100:
+            #     if motor == b'0':
+            #         motor = b'1'
+            #     else:
+            #         motor = b'0'
+            #     count = 0
+            # else:
+            #     count += 1
+                    
+            
+            if suction_griper == True:
+                motor = b'1'
+            else:
+                motor = b'0'
+            
+            rospy.sleep(0.001)
+
+        # bag.close()
+
+    def get_timestamp(self):
+        time_stamp = str(datetime.datetime.now()).replace(" ","_")
+        time_stamp = time_stamp.replace("-","_")
+        time_stamp = time_stamp.replace(":","_")
+        time_stamp = time_stamp.replace(".","_")
+        return time_stamp
+    
+    
+    def decode_voltage(self,data, scale=10):
+        decoded_data = []
+        for i in range(len(data)):
+            if i % 2 == 0:
+                united_data = (data[i] & 0x0f) << 8 | data[i+1]
+                voltage = scale * (united_data & 0x0fff) * (5 / 4096)
+                decoded_data.append(voltage)
+
+        return decoded_data
+
+    def decode_imu(self,data):
+        decoded_data = []
+        f_list = data[0:8], data[8:16], data[16:24], data[24:32], data[32:40], data[40:48]
+        for f in f_list:
+            float_data = struct.unpack('>d', f)[0]
+            decoded_data.append(float_data)
+
+        return decoded_data
+    
     def ur5_joints_callback(self,msg):
         self.ur5_joints = msg
              
@@ -203,8 +311,8 @@ class ROBOT_PRIMITIVES:
             except Exception as e:
                 print(e)
     
+    # obtain the fk: euler, pose, and 4x4 mat
     def get_fk_frame(self,joints, segmentNr=-1):
-     
         joints_ = KDL.JntArray(6)
         frame   = KDL.Frame()
         for i in range(6):
@@ -224,6 +332,7 @@ class ROBOT_PRIMITIVES:
         tf_mat = compose(pose,rot_mat,[1,1,1])
         return euler, pose, tf_mat
 
+    # called given change in global goal position
     def get_ik_sol(self, enable_rot=True, yaw_offset=0, real=False):
         # get goal id (only for testing)
         kdl_init_joints = KDL.JntArray(6)
@@ -266,7 +375,9 @@ class ROBOT_PRIMITIVES:
         self.ur5_ik_solver.CartToJnt(kdl_init_joints, kdl_goal_frame, kdl_goal_joints)
         kdl_goal_joints = [float(j) for j in kdl_goal_joints]
         return kdl_goal_joints
-        
+    
+    
+    # send ik solutions to ur5 robot
     def ur5_publisher(self):        
         robot_goals = rospy.get_param("robot_goals",default=[])
 
@@ -334,6 +445,9 @@ class ROBOT_PRIMITIVES:
                             break     
         return 
     
+    
+    # Generic pick and place way points 
+    # based on goal object's position
     def get_robot_waypoints(self,goal):
         waypoints = {}
         waypoints.update({"goal":goal})
@@ -351,8 +465,8 @@ class ROBOT_PRIMITIVES:
         
         return waypoints
         
+    
     def generate_goals(self):
-        
         # first six goals
         ref_goals = {}
         tmp_goals = []
@@ -360,7 +474,6 @@ class ROBOT_PRIMITIVES:
             tmp = np.load(os.path.join(self.package_path,"robot_goals",f"{i+1}.npy"))
             if i == 3 or i == 5:
                 x = tmp[1,-1]-0.02
-                
             else:
                 x = tmp[1,-1]
             y = -tmp[0,-1]
@@ -425,6 +538,68 @@ class ROBOT_PRIMITIVES:
                 rospy.set_param("save_robot_goal",False)
                 rospy.sleep(2)
             rospy.sleep(0.1)
+    
+    
+    def testing_and_debug(self):
+        goals = [[0.5,-0.4, 0.1],
+                 [0.5,-0.4, 0.06],
+                 [0.5, 0.0, 0.25],
+                 [0.5, 0.5, 0.1],
+                 [0.5, 0.5, 0.06],
+                 [0.5, 0.0, 0.25]]
+        tmp =   0.04    
+        filename = f"suction_gripper_data_{self.get_timestamp()}"
+        bag  = rosbag.Bag(filename,'w')
+        counter_ = 0 
+        gc_pub = rospy.Publisher("gripper_command",Float64,queue_size=1)
+        while not rospy.is_shutdown():
+               
+            for g_idx, g in enumerate(goals):
+                
+                # if rospy.get_param("go_home"):
+                #     self.init_robot()
+                #     rospy.set_param("go_home",False)
+                print("gggggggggg")
+                if g_idx == 0 or g_idx == 1:
+                    self.goal_y = g[1] - tmp
+                else:
+                    self.goal_y = g[1] 
+                
+                    
+                self.goal_x = g[0] 
+                self.goal_z = g[2]
+                 
+                # sim_goal_joints = self.get_ik_sol()
+                # print("goal_joints",goal_joints)
+                real_goal_joints = self.get_ik_sol(yaw_offset=np.pi/2, real=True)
+                self.ur5_control_msg.values = real_goal_joints
+                self.ur5_control_msg.time = 5
+                self.ur5_control_msg.command = "movel"
+                self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+                # for idx, gj in enumerate(sim_goal_joints):
+                #     self.sim_ur5_joint_publisher[idx].publish(gj)
+                
+                while not rospy.is_shutdown():
+                        if not self.reached_goal(goal_joints=real_goal_joints,real=True,atol=0.01, rtol=0.01):
+                            continue
+                        else:
+                            break     
+                print("Suction gripper on !!!!!",g_idx)
+                
+                if g_idx  == 0:
+                    rospy.set_param("suction_gripper",True)
+                    rospy.sleep(0.5)
+                    self.g_msg.data = 1
+                elif g_idx == 4:
+                    rospy.set_param("suction_gripper",False)
+                    self.g_msg.data = 0
+                    
+                gc_pub.publish(self.g_msg)
+                rospy.sleep(0.5)
+            tmp *= 2
+            counter_ += 1
+            if counter_ == 3:
+                break
             
             
     def __del__(self):
@@ -434,7 +609,13 @@ if __name__ == '__main__':
     
     try:
         rp = ROBOT_PRIMITIVES()
-        rp.run_thread()
+        # uncomment below to run experiment of ICRA
+        # rp.run_thread()
+        
+        # uncomment below to save goals (xyz) pose of objects aligned with projection
         # rp.save_robot_goals()
+        
+        # testing and debugging
+        rp.testing_and_debug()
     except Exception as e:
         print(e)

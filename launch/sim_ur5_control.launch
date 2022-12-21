@@ -10,10 +10,28 @@
                                                                                              joint_5_position_controller
                                                                                              finger_position_controller"                                                                                     
                                                                                              respawn="false" output="screen"/>
+
+
+<!-- <rosparam command="load" file="$(find ur5_intpro)/config/joint_states.yaml" />
+<node name="joint_state_controller_spawner" pkg="controller_manager" type="controller_manager" args="spawn joint_state_controller" respawn="false" output="screen"/> -->
+
+
+
+<!-- <rosparam command="load" file="$(find ur5_intpro)/config/ur5_traj_controllers.yaml" />
+<node name="controller_spawner" pkg="controller_manager" type="controller_manager"  args="spawn ur5_controller"    respawn="false" output="screen"/> -->
 <arg name="dev" default="0"/>
 
-<node name="joy_node" pkg="joy" type="joy_node" output="screen">
+<!-- <node pkg="robot_state_publisher" type="robot_state_publisher"  name="robot_state_publisher" respawn="false" output="screen"/> -->
+
+<!-- <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+  <param name="/use_gui" value="false"/> 
+  <param name="/rate" value="15"/>
+</node> -->
+
+
+
+<!-- <node name="joy_node" pkg="joy" type="joy_node" output="screen">
  <param name="dev" value="/dev/input/js$(arg dev)" />
-</node>
+</node> -->
 
 </launch>
