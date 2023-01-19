@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
   tf2
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -57,15 +58,15 @@ add_message_files(
   FILES
   Ur5Joints.msg
   CamPose.msg
+  Robotiq.msg
   # Message2.msg
 )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+  FILES
+  GoHome.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(

@@ -31,6 +31,11 @@
     #- SecondTracker
     </rosparam>
 </node>
+
+<include file="$(find ros_tcp_endpoint)/launch/endpoint.launch">
+      <arg name="tcp_ip" value="127.0.0.1"/>
+</include>
+
 <!-- <node pkg="tf" type="static_transform_publisher" name="opti_static_broadcaster" args="0 0 0 0 0 0 base world 20" /> -->
 <!-- <node name="intprim_framework_ros" pkg="ur5_intpro" type="optitrack_tf.py" output="screen" respawn="true" /> -->
 

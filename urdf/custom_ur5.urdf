@@ -4,40 +4,6 @@
 <!-- |    EDITING THIS FILE BY HAND IS NOT RECOMMENDED                                 | -->
 <!-- =================================================================================== -->
 <robot name="ur5">
-  <gazebo>
-    <plugin filename="libgazebo_ros_control.so" name="ros_control">
-      <!--robotNamespace>/</robotNamespace-->
-      <!--robotSimType>gazebo_ros_control/DefaultRobotHWSim</robotSimType-->
-    </plugin>
-    <!--
-    <plugin name="gazebo_ros_power_monitor_controller" filename="libgazebo_ros_power_monitor.so">
-      <alwaysOn>true</alwaysOn>
-      <updateRate>1.0</updateRate>
-      <timeout>5</timeout>
-      <powerStateTopic>power_state</powerStateTopic>
-      <powerStateRate>10.0</powerStateRate>
-      <fullChargeCapacity>87.78</fullChargeCapacity>     
-      <dischargeRate>-474</dischargeRate>
-      <chargeRate>525</chargeRate>
-      <dischargeVoltage>15.52</dischargeVoltage>
-      <chargeVoltage>16.41</chargeVoltage>
-    </plugin>
--->
-  </gazebo>
-  <!-- measured from model -->
-  <!--property name="shoulder_height" value="0.089159" /-->
-  <!--property name="shoulder_offset" value="0.13585" /-->
-  <!-- shoulder_offset - elbow_offset + wrist_1_length = 0.10915 -->
-  <!--property name="upper_arm_length" value="0.42500" /-->
-  <!--property name="elbow_offset" value="0.1197" /-->
-  <!-- CAD measured -->
-  <!--property name="forearm_length" value="0.39225" /-->
-  <!--property name="wrist_1_length" value="0.093" /-->
-  <!-- CAD measured -->
-  <!--property name="wrist_2_length" value="0.09465" /-->
-  <!-- In CAD this distance is 0.930, but in the spec it is 0.09465 -->
-  <!--property name="wrist_3_length" value="0.0823" /-->
-  <!-- manually measured -->
   <link name="base_link">
     <visual>
       <geometry>
@@ -390,11 +356,11 @@
         <mesh filename="package://robotiq_description/meshes/robotiq_85_coupler.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <origin rpy="0 0 0" xyz="2.073e-05   1.45286e-03  -1.1049e-03"/>
       <mass value="0.168"/>
       <inertia ixx="6.69695624e-05" ixy="5.21511788e-09" ixz="-2.74383009e-08" iyy="7.85088161e-05" iyz="5.41105193e-07" izz="1.41819717e-04"/>
-    </inertial>
+    </inertial> -->
   </link>
   <joint name="robotiq_coupler_joint" type="fixed">
     <origin rpy="0 0 -1.5707963267948966" xyz="0 0 0.004"/>
@@ -429,11 +395,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_base_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.636951"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000380" ixy="0.000000" ixz="0.000000" iyx="0.000000" iyy="0.001110" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.001171"/>
-    </inertial>
+    </inertial> -->
   </link>
   <joint name="robotiq_85_left_knuckle_joint" type="revolute">
     <parent link="robotiq_85_base_link"/>
@@ -461,11 +427,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_knuckle_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.018491"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000009" ixy="-0.000001" ixz="0.000000" iyx="-0.000001" iyy="0.000001" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.000010"/>
-    </inertial>
+    </inertial> -->
   </link>
   <link name="robotiq_85_right_knuckle_link">
     <visual>
@@ -478,11 +444,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_knuckle_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.018491"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000009" ixy="-0.000001" ixz="0.000000" iyx="-0.000001" iyy="0.000001" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.000010"/>
-    </inertial>
+    </inertial> -->
   </link>
   <joint name="robotiq_85_left_finger_joint" type="fixed">
     <parent link="robotiq_85_left_knuckle_link"/>
@@ -505,11 +471,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_finger_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.027309"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000003" ixy="-0.000002" ixz="0.000000" iyx="-0.000002" iyy="0.000021" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.000020"/>
-    </inertial>
+    </inertial> -->
   </link>
   <link name="robotiq_85_right_finger_link">
     <visual>
@@ -522,11 +488,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_finger_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.027309"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000003" ixy="-0.000002" ixz="0.000000" iyx="-0.000002" iyy="0.000021" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.000020"/>
-    </inertial>
+    </inertial> -->
   </link>
   <joint name="robotiq_85_left_inner_knuckle_joint" type="continuous">
     <parent link="robotiq_85_base_link"/>
@@ -555,11 +521,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_inner_knuckle_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.029951"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000039" ixy="0.000000" ixz="0.000000" iyx="0.000000" iyy="0.000005" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.000035"/>
-    </inertial>
+    </inertial> -->
   </link>
   <link name="robotiq_85_right_inner_knuckle_link">
     <visual>
@@ -572,11 +538,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_inner_knuckle_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.029951"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000039" ixy="0.000000" ixz="0.000000" iyx="0.000000" iyy="0.000005" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.000035"/>
-    </inertial>
+    </inertial> -->
   </link>
   <joint name="robotiq_85_left_finger_tip_joint" type="continuous">
     <parent link="robotiq_85_left_inner_knuckle_link"/>
@@ -605,11 +571,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_finger_tip_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.019555"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000002" ixy="0.000000" ixz="0.000000" iyx="0.000000" iyy="0.000005" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.000006"/>
-    </inertial>
+    </inertial> -->
   </link>
   <link name="robotiq_85_right_finger_tip_link">
     <visual>
@@ -622,11 +588,11 @@
         <mesh filename="package://robotiq_description/meshes/collision/robotiq_85_finger_tip_link.stl"/>
       </geometry>
     </collision>
-    <inertial>
+    <!-- <inertial>
       <mass value="0.019555"/>
       <origin xyz="0.0 0.0 0.0"/>
       <inertia ixx="0.000002" ixy="0.000000" ixz="0.000000" iyx="0.000000" iyy="0.000005" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.000006"/>
-    </inertial>
+    </inertial> -->
   </link>
   <!-- Improve grasping physics -->
   <gazebo reference="robotiq_85_left_finger_tip_link">
@@ -651,7 +617,7 @@
     </joint>
     <actuator name="robotiq_85_left_knuckle_motor">
       <mechanicalReduction>1</mechanicalReduction>
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <!-- <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface> -->
       <!-- <hardwareInterface>EfforJointInterface</hardwareInterface> -->
     </actuator>
   </transmission>
