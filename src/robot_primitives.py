@@ -538,97 +538,41 @@ class ROBOT_PRIMITIVES:
                 rospy.sleep(2)
             rospy.sleep(0.1)
     
+    def real2sim(self,x,y,z):
+        pass
     
     def testing_and_debug(self):
-        goals = [[0.5,-0.4, 0.2],
-                 [0.5,-0.4, 0.06],
-                 [0.5, 0.0, 0.25],
-                 [0.5, 0.5, 0.1],
-                 [0.5, 0.5, 0.06],
-                 [0.5, 0.0, 0.25]]
-        tmp =   0.04    
-        # filename = f"suction_gripper_data_{self.get_timestamp()}"
-        # bag  = rosbag.Bag(filename,'w')
-        
-        
-        
-        # go home if true
-        if rospy.get_param("go_home"):
-            self.go_home()
-        counter_ = 0 
-        gc_pub = rospy.Publisher("gripper_command",Float64,queue_size=1)
+        goals = [[-0.4, 0.4, 0.2],
+                 [-0.4, 0.4, 0.06],
+                 [ 0.0, 0.4, 0.25],
+                 [ 0.4, 0.4, 0.1],
+                 [ 0.4, 0.4, 0.06],
+                 [ 0.0, 0.4, 0.25]]
+        all_goals = self.generate_goals()
+        robot_goals = rospy.get_param("robot_goals",default=list())
+        print(robot_goals)
+        if len(robot_goals) != 6:
+            return
+        home_joints = [115.55, -105.80, 99.89, -84.24, -89.98, 25.42]
+        home_joints = [np.deg2rad(jh) for jh in home_joints]
+        for _ in range(100):
+            for idx, gj in enumerate(home_joints):
+                self.sim_ur5_joint_publisher[idx].publish(gj)
+            rospy.sleep(0.01)
+            
         while not rospy.is_shutdown():
-               
-            for g_idx, g in enumerate(goals):
-                
-                # if rospy.get_param("go_home"):
-                #     self.init_robot()
-                #     rospy.set_param("go_home",False)
-                # print("gggggggggg")
-                if g_idx == 0 or g_idx == 1:
-                    self.goal_y = g[1] - tmp
-                else:
-                    self.goal_y = g[1] 
-                
-                    
-                self.goal_x = g[0] 
-                self.goal_z = g[2]
-                 
+            # for g_idx, g in enumerate(goals):
+            for g in robot_goals:
+                print("Moving to robot goal id: ",g)
+                rg = all_goals.get(g)
+                rospy.set_param("goal_id",g)
+                self.goal_x = rg[0] 
+                self.goal_y = rg[1] 
+                self.goal_z = rg[2]
                 sim_goal_joints = self.get_ik_sol()
                 for idx, gj in enumerate(sim_goal_joints):
-                    self.sim_ur5_joint_publisher[idx].publish(gj)
-                # print("goal_joints",goal_joints)
-                
-                real_curr_joints = [j for j in self.ur5_joints.positions]
-                real_goal_joints = self.get_ik_sol(yaw_offset=np.pi/2, real=True)
-                t_len = 50
-                trajectory = [] * t_len
-                for c, g in zip(real_curr_joints,real_goal_joints):
-                    # print("current_j: ", c)
-                    # print("goal_j: ", g)
-                    traj = np.linspace(start=c, stop=g, num=t_len)
-                    # print("trajectory: ",traj)
-                    trajectory.append(traj)
-                trajectory = np.array(trajectory).T
-                print(trajectory.shape)
-                self.ur5_control_msg.command = "speedj"
-                # self.ur5_control_msg.acceleration = 0.5
-                self.ur5_control_msg.velocity = 0
-                self.ur5_control_msg.gain = 0
-                self.ur5_control_msg.time = 1/t_len
-                for t in trajectory:
-                    # print(t)
-                    self.ur5_control_msg.values = t
-                    self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-                    # rospy.sleep(0.1)
-                    rospy.sleep(1/t_len)
-                # for position control 
-                # self.ur5_control_msg.values = real_goal_joints
-                # self.ur5_control_msg.time = 5
-                # self.ur5_control_msg.command = "movel"
-                # self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-                
-                # while not rospy.is_shutdown():
-                #         if not self.reached_goal(goal_joints=real_goal_joints,real=True,atol=0.01, rtol=0.01):
-                #             continue
-                #         else:
-                #             break     
-                print("Suction gripper on !!!!!",g_idx)
-                
-                if g_idx  == 0:
-                    rospy.set_param("suction_gripper",True)
-                    rospy.sleep(0.5)
-                    self.g_msg.data = 1
-                elif g_idx == 4:
-                    rospy.set_param("suction_gripper",False)
-                    self.g_msg.data = 0
-                    
-                gc_pub.publish(self.g_msg)
-                rospy.sleep(0.5)
-            tmp *= 2
-            counter_ += 1
-            if counter_ == 3:
-                break
+                    self.sim_ur5_joint_publisher[idx].publish(gj)   
+                rospy.sleep(3)
             
             
     def __del__(self):

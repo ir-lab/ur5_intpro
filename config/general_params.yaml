@@ -24,7 +24,7 @@ ik_goal:
   z     : 0.35  # meters
   yaw   : 0.0   # degrees
   pitch : 90.0   # degrees
-  roll  : 0.0   # degrees
+  roll  : 90.0   # degrees
 z_offset : 0.0
 gripper_sim : 0.0
 gripper_real: 0
