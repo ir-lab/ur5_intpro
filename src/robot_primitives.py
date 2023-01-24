@@ -9,6 +9,7 @@ import PyKDL as KDL
 import rospkg
 import rospy
 from std_msgs.msg import String, Float64, Float64MultiArray
+from ur5_intpro.msg import Ur5Joints as unityUr5
 from irl_robots.msg import ur5Control, matrix, rows, ur5Joints, gSimpleControl
 from sensor_msgs.msg import JointState, Joy
 from transforms3d.affines import compose
@@ -58,7 +59,8 @@ class ROBOT_PRIMITIVES:
         self.ur5_control_msg.time         = rospy.get_param("irl_robot_com_time", default=5)
         self.ur5_control_msg.jointcontrol = True
         self.ur5_control_timeout = 0
-        
+        self.unity_ur5_msg = unityUr5() 
+        rospy.Subscriber("/unity_ur5/joints",unityUr5,self.unity_ur5_callback)
         rospy.Subscriber("/joint_states",JointState,self.joint_state_callback,buff_size=1)
         rospy.Subscriber("/ur5/joints",ur5Joints,self.ur5_joints_callback)
         rospy.Subscriber("/joy",Joy,self.joy_callback)
@@ -81,7 +83,9 @@ class ROBOT_PRIMITIVES:
         self.sim_ur5_joint_publisher  = [rospy.Publisher("/joint_{}_position_controller/command".format(i),Float64,queue_size=1) for i in range(6)]
         self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
         self.r2fg_control_publisher   = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=10)
-        
+        self.unity_ur5_pub        = rospy.Publisher("/ur5_goal/joints",unityUr5,queue_size=1)
+        self.unity_ur5_shadow_pub        = rospy.Publisher("/ur5_shadow/joints",unityUr5,queue_size=1)
+        self.unity_robotiq_pub    = rospy.Publisher("/robotiq/joint",Float64,queue_size=1)
         # self.goals = self.general_params["goals"]
         print("Generating goals!!!!!")
         self.goals = self.generate_goals()
@@ -95,7 +99,9 @@ class ROBOT_PRIMITIVES:
         return struct.unpack('<f', data)[0]
 
    
-    
+    def unity_ur5_callback(self,msg):
+        self.unity_ur5_msg = msg
+        
     def run_socket_packets(self):
         SERV = '192.168.1.124'
         HOST = '192.168.1.148'
@@ -332,11 +338,14 @@ class ROBOT_PRIMITIVES:
         return euler, pose, tf_mat
 
     # called given change in global goal position
-    def get_ik_sol(self, enable_rot=True, yaw_offset=0, real=False):
+    def get_ik_sol(self, enable_rot=True, yaw_offset=0.0, real=False, unity=False):
         # get goal id (only for testing)
         kdl_init_joints = KDL.JntArray(6)
         if real:
             for i,jt in enumerate(self.ur5_joints.positions):
+                kdl_init_joints[i] = jt
+        elif unity:
+            for i, jt in enumerate(self.unity_ur5_msg.joints):
                 kdl_init_joints[i] = jt
         else:            
             kdl_init_joints[0] = self.joint_state_msg.position[3] 
@@ -479,7 +488,7 @@ class ROBOT_PRIMITIVES:
             z = 0.28
             ref_goals.update({(i+1):[x,y,z]})
             tmp_goals.append([x,y,z])
-            print(x,y,z)
+            # print(x,y,z)
         
         
         counter = 7
@@ -550,14 +559,18 @@ class ROBOT_PRIMITIVES:
                  [ 0.0, 0.4, 0.25]]
         all_goals = self.generate_goals()
         robot_goals = rospy.get_param("robot_goals",default=list())
-        print(robot_goals)
+        print("robot_goal ids: ",robot_goals)
         if len(robot_goals) != 6:
             return
         home_joints = [115.55, -105.80, 99.89, -84.24, -89.98, 25.42]
         home_joints = [np.deg2rad(jh) for jh in home_joints]
         for _ in range(100):
-            for idx, gj in enumerate(home_joints):
-                self.sim_ur5_joint_publisher[idx].publish(gj)
+            # for idx, gj in enumerate(home_joints):
+            #     self.sim_ur5_joint_publisher[idx].publish(gj)
+            unity_home_joints = unityUr5()
+            unity_home_joints.joints = home_joints
+            self.unity_ur5_shadow_pub.publish(unity_home_joints)
+            self.unity_ur5_pub.publish(unity_home_joints)
             rospy.sleep(0.01)
             
         while not rospy.is_shutdown():
@@ -566,29 +579,62 @@ class ROBOT_PRIMITIVES:
                 print("Moving to robot goal id: ",g)
                 rg = all_goals.get(g)
                 rospy.set_param("goal_id",g)
-                self.goal_x = rg[0] 
-                self.goal_y = rg[1] 
-                self.goal_z = rg[2]
-                sim_goal_joints = self.get_ik_sol()
-                for idx, gj in enumerate(sim_goal_joints):
-                    self.sim_ur5_joint_publisher[idx].publish(gj)   
-                rospy.sleep(3)
+                waypoints = self.get_robot_waypoints(rg)
+                
+                for k, v in waypoints.items():
+                    n_robot_goal = rospy.get_param("robot_goals",default=list())
+                    if not np.allclose(robot_goals,n_robot_goal):
+                        print("Got new goals!!!!!!!")
+                        return 
+                    
+                    if k == "grasp" or k == "release":
+                        # doe robot tic gripper action
+                        pass
+                    else:
+                    
+                        self.goal_x = v[0] 
+                        self.goal_y = v[1] 
+                        self.goal_z = v[2]
+                        # sim_goal_joints = self.get_ik_sol()
+                        sim_goal_joints = self.get_ik_sol(unity=True,yaw_offset=np.pi/2)
+                        
+                        
+                        unity_goal_joints = unityUr5()
+                        unity_goal_joints.joints = sim_goal_joints
+
+                        self.unity_ur5_shadow_pub.publish(sim_goal_joints)
+                        # time delay
+                        if k == "pick_up" or k == "pick_down" or k == "workspace" or k == "back":
+                            delta = 0.0
+                        else:
+                            delta = 1.0
+
+                        rospy.sleep(delta)
+                        self.unity_ur5_pub.publish(unity_goal_joints)
+                        print(f"doing action in: {k} and delta: {delta}")
+                        
+                        # for idx, gj in enumerate(sim_goal_joints):
+                            # self.sim_ur5_joint_publisher[idx].publish(gj)   
+                        rospy.sleep(1)
             
             
     def __del__(self):
         pass
     
 if __name__ == '__main__':
+    rp = ROBOT_PRIMITIVES()
     
-    try:
-        rp = ROBOT_PRIMITIVES()
-        # uncomment below to run experiment of ICRA
-        # rp.run_thread()
-        
-        # uncomment below to save goals (xyz) pose of objects aligned with projection
-        # rp.save_robot_goals()
-        
-        # testing and debugging
-        rp.testing_and_debug()
-    except Exception as e:
-        print(e)
+    while not rospy.is_shutdown():
+        try:
+            # uncomment below to run experiment of ICRA
+            # rp.run_thread()
+            
+            # uncomment below to save goals (xyz) pose of objects aligned with projection
+            # rp.save_robot_goals()
+            
+            # testing and debugging
+            print("running main loop")
+            rp.testing_and_debug()
+            rospy.sleep(1/30)
+        except Exception as e:
+            print(e)
