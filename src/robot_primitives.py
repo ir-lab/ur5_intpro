@@ -53,6 +53,8 @@ class ROBOT_PRIMITIVES:
         self.joy_msg         = Joy()
         self.ur5_control_msg = ur5Control()
         self.r2fg_msg        = gSimpleControl()
+        self.r2fg_msg.force = 255
+        self.r2fg_msg.speed = 255
         self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",  default="movej") 
         self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",     default=np.pi/2)
         self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",      default=np.pi/2) 
@@ -60,6 +62,7 @@ class ROBOT_PRIMITIVES:
         self.ur5_control_msg.jointcontrol = True
         self.ur5_control_timeout = 0
         self.unity_ur5_msg = unityUr5() 
+        self.unity_msg_flag = False 
         rospy.Subscriber("/unity_ur5/joints",unityUr5,self.unity_ur5_callback)
         rospy.Subscriber("/joint_states",JointState,self.joint_state_callback,buff_size=1)
         rospy.Subscriber("/ur5/joints",ur5Joints,self.ur5_joints_callback)
@@ -71,7 +74,7 @@ class ROBOT_PRIMITIVES:
         self.ur5_ik_solver = KDL.ChainIkSolverPos_LMA(self.ur5_tf_chain, 1e-8 ,1000, 1e-6)
         self.ur5_fk_solver = KDL.ChainFkSolverPos_recursive(self.ur5_tf_chain)
         # self.ur5_ik_solver =  KDL.ChainIkSolverPos_NR(Chain=self.ur5_tf_chain)
-        
+        rospy.set_param("time_delta",1.0)
         # ik prameters
         self.goal_x   = self.general_params["ik_goal"]["x"]
         self.goal_y   = self.general_params["ik_goal"]["y"]
@@ -89,6 +92,7 @@ class ROBOT_PRIMITIVES:
         # self.goals = self.general_params["goals"]
         print("Generating goals!!!!!")
         self.goals = self.generate_goals()
+        self.robot_goals = None
         self.rosthread = self.rospy_thread()
         # self.socket_thread = threading.Thread(target=self.run_socket_packets,args=())
         # self.socket_thread.start()
@@ -100,6 +104,10 @@ class ROBOT_PRIMITIVES:
 
    
     def unity_ur5_callback(self,msg):
+        if msg is not None:
+            self.unity_msg_flag = True
+        else:
+            self.unity_msg_flag = False
         self.unity_ur5_msg = msg
         
     def run_socket_packets(self):
@@ -230,12 +238,19 @@ class ROBOT_PRIMITIVES:
         time_delay = rospy.get_param("time_delay",default=0.5) 
         return time_delay
     
-    def reached_goal(self,goal_joints,real=False,rtol=1e-3,atol=1e-3):
+    def reached_goal(self,goal_joints,waypoint_id ="",real=False,rtol=1e-3,atol=1e-3,):
         if real:
-            if np.allclose(self.ur5_joints.positions,goal_joints, rtol=rtol, atol=atol):
-                return True
+            if waypoint_id == "workspace":
+                
+                if np.allclose(self.ur5_joints.positions,goal_joints, rtol=1e-1, atol=1e-1):
+                    return True
+                else:
+                    return False
             else:
-                return False
+                if np.allclose(self.ur5_joints.positions,goal_joints, rtol=rtol, atol=atol):
+                    return True
+                else:
+                    return False
         else:
             
             if np.allclose(self.get_sim_joints(),goal_joints, rtol=rtol, atol=atol):
@@ -246,25 +261,22 @@ class ROBOT_PRIMITIVES:
     
     def go_home(self):
         print("Going Home!!!")
-        home_joints = [np.deg2rad(jnt) for jnt in self.general_params["home_joints"]]
         timeout = 6
         counter = 0
-        while not rospy.is_shutdown():
-            if not (self.reached_goal(home_joints,real=True) or self.reached_goal(home_joints)):
-                self.ur5_control_msg.values = home_joints
-                self.ur5_control_msg.time = 3
-                for i, gj in enumerate(home_joints):
-                    self.sim_ur5_joint_publisher[i].publish((gj - np.pi/2) if i ==0 else gj)
-                self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-                rospy.sleep(3)
-                if counter >= timeout:
-                    break
-                counter += 3
-            else:
-                break
-        euler,_,_ = self.get_fk_frame(joints=self.get_sim_joints())
-        print("Home euler",euler)
+        home_joints = [115.55, -105.80, 99.89, -84.24, -89.98, 25.42]
+        home_joints = [np.deg2rad(jh) for jh in home_joints]
+        for _ in range(100):
+            # for idx, gj in enumerate(home_joints):
+            #     self.sim_ur5_joint_publisher[idx].publish(gj)
+            unity_home_joints = unityUr5()
+            unity_home_joints.joints = home_joints
+            self.unity_ur5_shadow_pub.publish(unity_home_joints)
+            self.unity_ur5_pub.publish(unity_home_joints)
+            rospy.sleep(0.01)
+            
+        self.publish_ur5_movej(goal_joints=home_joints)
         return
+    
     
     def init_robot(self):
         self.go_home()
@@ -275,47 +287,7 @@ class ROBOT_PRIMITIVES:
         
     def get_time(self):
         return rospy.Time().now()
-    
-    def run_thread(self):
-        print("Running main Thread!!!")
-        while not rospy.is_shutdown():
-            try:
-                print("runing main thread")
-                
-                if rospy.get_param("go_home"):
-                    self.init_robot()
-                    rospy.set_param("go_home",False)
-                
-                if rospy.get_param("start_user_exp"):
-                    rospy.set_param("start_user_exp",False)                                    
-                    print("Starting the experiment")
-                    rospy.set_param("stop_saving",False)
-                    self.show_execution_time = False
-                    self.t1 = self.get_time()
-                    self.ur5_publisher()
-                    # rospy.set_param("start_user_exp",False)
-                    
-                if rospy.get_param("stop_user_exp"):
-                    rospy.set_param("stop_user_exp",False)
-                    print("Stopping the experiment")
-                    self.show_execution_time = True
-                    self.t2  = rospy.Time().now()
-                    self.execution_time = (self.t2-self.t1) * 1e-9
-                
-                if self.show_execution_time:
-                    rospy.set_param("stop_saving",True)
-                    print(f"Execution time: {self.execution_time} secs")
-                    self.show_execution_time = False
-                
-                print(rospy.get_param("stop_saving"))
-                # else:
-                #     rospy.set_param("stop_saving",False)
-                    
-                    
-                rospy.sleep(1)
-            except Exception as e:
-                print(e)
-    
+       
     # obtain the fk: euler, pose, and 4x4 mat
     def get_fk_frame(self,joints, segmentNr=-1):
         joints_ = KDL.JntArray(6)
@@ -394,6 +366,7 @@ class ROBOT_PRIMITIVES:
             return
         
         rf_goals = self.generate_goals()
+       
         # all_goals = np.array(self.goals)
         # rf_goals = np.take(all_goals,robot_goals,axis=0)
         
@@ -407,7 +380,7 @@ class ROBOT_PRIMITIVES:
                 print(f"Going to {k}")                    
                 if k == "grasp" or k == "release":
                     # self.r2fg_msg.position = 0
-                    self.r2fg_msg.position = v
+                    self.r2fg_msg.position = int(v)
                     self.r2fg_msg.force = 100
                     self.r2fg_msg.speed = 255
                     self.r2fg_control_publisher.publish(self.r2fg_msg)
@@ -469,8 +442,7 @@ class ROBOT_PRIMITIVES:
         waypoints.update ({"back":back})
         waypoints.update({"release":0})
         workspace = [0.25, 0.45*(1 if goal[1] >= 0 else -1),goal[2]]
-        waypoints.update({"workspace":workspace})
-        
+        waypoints.update({"workspace":workspace}) 
         return waypoints
         
     
@@ -499,37 +471,6 @@ class ROBOT_PRIMITIVES:
                 else:
                     ref_goals.update({counter:[rg[0]+ (0.15*j), rg[1], rg[2]]})
                 counter += 1
-        
-        # all_goals = ref_goals + all_goals
-
-        # print(all_goals)
-        # exit()
-                
-        # ref_goal = np.load(os.path.join(self.package_path,"robot_goals",f"{1}.npy"))
-        # ref_goal = compose([0.30,0.525,0.25], euler2mat(0,0,0),[1,1,1])
-        # current_goal = ref_goal
-        # goals = []
-        # goals.append(ref_goal[0:3,-1])
-        
-        # c_y_offset= 0.0
-        # y_change = 0
-        # x_change = 0
-        # for i in tqdm(range(3)):
-        #     y_change = 0
-        #     c_y_offset= 0.0
-        #     for j in range(6):
-        #         change_tf = compose([x_change,y_change,0],euler2mat(0,0,0),[1,1,1])
-        #         new_goal = np.matmul(ref_goal,change_tf)
-        #         goals.append(new_goal[0:3,-1])
-        #         # if j >= 4 :
-        #         #     c_y_offset += 0.00
-                    
-        #         if j >= 3:
-        #             c_y_offset -= 0.0
-        #         y_change -= (0.20 + c_y_offset) 
-                
-        #     x_change += 0.18
-        # return goals
         return ref_goals
     
     def save_robot_goals(self):
@@ -550,6 +491,49 @@ class ROBOT_PRIMITIVES:
     def real2sim(self,x,y,z):
         pass
     
+    
+    
+    
+    def run_thread(self):
+        while not rospy.is_shutdown():
+            try:
+                print("runing main thread")
+                
+                if rospy.get_param("go_home"):
+                    self.init_robot()
+                    rospy.set_param("go_home",False)
+                
+                if rospy.get_param("start_user_exp"):
+                    rospy.set_param("start_user_exp",False)                                    
+                    print("Starting the experiment")
+                    rospy.set_param("stop_saving",False)
+                    self.show_execution_time = False
+                    self.t1 = self.get_time()
+                    self.ur5_publisher()
+                    # rospy.set_param("start_user_exp",False)
+                    
+                if rospy.get_param("stop_user_exp"):
+                    rospy.set_param("stop_user_exp",False)
+                    print("Stopping the experiment")
+                    self.show_execution_time = True
+                    self.t2  = rospy.Time().now()
+                    self.execution_time = (self.t2-self.t1) * 1e-9
+                
+                if self.show_execution_time:
+                    rospy.set_param("stop_saving",True)
+                    print(f"Execution time: {self.execution_time} secs")
+                    self.show_execution_time = False
+                
+                print(rospy.get_param("stop_saving"))
+                # else:
+                #     rospy.set_param("stop_saving",False)
+                    
+                    
+                rospy.sleep(1)
+            except Exception as e:
+                print(e)
+                
+                
     def testing_and_debug(self):
         goals = [[-0.4, 0.4, 0.2],
                  [-0.4, 0.4, 0.06],
@@ -557,10 +541,13 @@ class ROBOT_PRIMITIVES:
                  [ 0.4, 0.4, 0.1],
                  [ 0.4, 0.4, 0.06],
                  [ 0.0, 0.4, 0.25]]
+        if not self.unity_msg_flag:
+            print("\nwaiting for unity joint msgs!!!!\n")
+            return
         all_goals = self.generate_goals()
-        robot_goals = rospy.get_param("robot_goals",default=list())
-        print("robot_goal ids: ",robot_goals)
-        if len(robot_goals) != 6:
+        self.robot_goals = rospy.get_param("robot_goals",default=list())
+        print("robot_goal ids: ",self.robot_goals)
+        if len(self.robot_goals) != 6:
             return
         home_joints = [115.55, -105.80, 99.89, -84.24, -89.98, 25.42]
         home_joints = [np.deg2rad(jh) for jh in home_joints]
@@ -573,9 +560,11 @@ class ROBOT_PRIMITIVES:
             self.unity_ur5_pub.publish(unity_home_joints)
             rospy.sleep(0.01)
             
+        self.publish_ur5_movej(goal_joints=home_joints)
+        
         while not rospy.is_shutdown():
             # for g_idx, g in enumerate(goals):
-            for g in robot_goals:
+            for g in self.robot_goals:
                 print("Moving to robot goal id: ",g)
                 rg = all_goals.get(g)
                 rospy.set_param("goal_id",g)
@@ -583,49 +572,195 @@ class ROBOT_PRIMITIVES:
                 
                 for k, v in waypoints.items():
                     n_robot_goal = rospy.get_param("robot_goals",default=list())
-                    if not np.allclose(robot_goals,n_robot_goal):
+                    if not np.allclose(self.robot_goals,n_robot_goal):
                         print("Got new goals!!!!!!!")
                         return 
                     
+                    if k == "pick_up" or k == "pick_down":
+                        self.ur5_control_msg.time = 0.8
+                    else:
+                        self.ur5_control_msg.time = 2.0
+                        
+                    
                     if k == "grasp" or k == "release":
-                        # doe robot tic gripper action
-                        pass
+                        # do robotic gripper action
+                        self.r2fg_msg.position = v
+                        self.r2fg_control_publisher.publish(self.r2fg_msg)
+                        # pass
                     else:
                     
                         self.goal_x = v[0] 
                         self.goal_y = v[1] 
                         self.goal_z = v[2]
                         # sim_goal_joints = self.get_ik_sol()
-                        sim_goal_joints = self.get_ik_sol(unity=True,yaw_offset=np.pi/2)
-                        
+                        sim_goal_joints  = self.get_ik_sol(unity=True,yaw_offset=np.pi/2)
+                        real_goal_joints = self.get_ik_sol(unity=False,real=True,yaw_offset=np.pi/2)
                         
                         unity_goal_joints = unityUr5()
                         unity_goal_joints.joints = sim_goal_joints
 
-                        self.unity_ur5_shadow_pub.publish(sim_goal_joints)
                         # time delay
                         if k == "pick_up" or k == "pick_down" or k == "workspace" or k == "back":
                             delta = 0.0
+                            self.ur5_control_msg.time = 1.2
+                            
                         else:
-                            delta = 1.0
+                            delta = rospy.get_param("time_delta",default=1)
 
+                        self.unity_ur5_shadow_pub.publish(sim_goal_joints)
                         rospy.sleep(delta)
+                        self.ur5_control_msg.time = delta
                         self.unity_ur5_pub.publish(unity_goal_joints)
-                        print(f"doing action in: {k} and delta: {delta}")
+                        self.publish_ur5_movej(goal_joints=real_goal_joints)
                         
-                        # for idx, gj in enumerate(sim_goal_joints):
-                            # self.sim_ur5_joint_publisher[idx].publish(gj)   
-                        rospy.sleep(1)
+                        print(f"doing action in: {k} and delta: {delta}")
+    
+    
+    def move_to_robot_goals(self):
+        for g in self.robot_goals:
+            print("Moving to robot goal id: ",g)
+            rg = self.goals.get(g)
+            rospy.set_param("goal_id",g)
+            waypoints = self.get_robot_waypoints(rg)
+            self.move_2_waypoints(waypoints=waypoints)
+        return
+    
+    
+    def iros_experiment(self):
+        if rospy.get_param("go_home"):
+                self.init_robot()
+                rospy.set_param("go_home",False)
             
+        if rospy.get_param("start_user_exp"):
+            rospy.set_param("start_user_exp",False)                                    
+            print("Starting the experiment")
+            rospy.set_param("stop_saving",False)
+            self.show_execution_time = False
+            self.t1 = self.get_time()
+            self.robot_goals = rospy.get_param("robot_goals",default=list())
+            print("robot_goal ids: ",self.robot_goals)
+            if len(self.robot_goals) != 6:
+                return
+            self.move_to_robot_goals()
             
+            rospy.set_param("start_user_exp",False)
+    
+                
+        if rospy.get_param("stop_user_exp"):
+            rospy.set_param("stop_user_exp",False)
+            print("Stopping the experiment")
+            self.show_execution_time = True
+            self.t2  = rospy.Time().now()
+            self.execution_time = (self.t2-self.t1) * 1e-9
+            
+        if self.show_execution_time:
+            rospy.set_param("stop_saving",True)
+            print(f"Execution time: {self.execution_time} secs")
+            self.show_execution_time = False
+        return 
+    
+    def publish_ur5_movej(self,goal_joints,waypoint_id = ""):
+        self.ur5_control_msg.values = goal_joints
+        self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+        while not rospy.is_shutdown():
+            if not self.reached_goal(goal_joints=goal_joints,real=True,waypoint_id =waypoint_id):
+                continue
+            else:
+                break   
+        return
+    
+    def get_random_time(self, min=0.8, max=2.0):
+        rsample = (max-min) * np.random.random_sample() + min
+        return rsample
+    
+    def move_2_waypoints(self, waypoints):
+        for k, v in waypoints.items():
+            n_robot_goal = rospy.get_param("robot_goals",default=list())
+            if not np.allclose(self.robot_goals,n_robot_goal):
+                print("Got new goals!!!!!!!")
+                return 
+            
+            if k == "pick_up" or k == "pick_down":
+                self.ur5_control_msg.time = 0.8
+            else:
+                self.ur5_control_msg.time = 2.0
+                
+            
+            if k == "grasp" or k == "release":
+                # do robotic gripper action
+                # self.r2fg_msg.position = v
+                self.r2fg_msg.position = v if rospy.get_param("grasp_on") else 0
+                self.r2fg_control_publisher.publish(self.r2fg_msg)
+                # pass
+            else:
+            
+                self.goal_x = v[0] 
+                self.goal_y = v[1] 
+                self.goal_z = v[2]
+                # sim_goal_joints = self.get_ik_sol()
+                
+                real_goal_joints = self.get_ik_sol(unity=False,real=True,yaw_offset=np.pi/2)  
+                sim_goal_joints  = self.get_ik_sol(unity=True,yaw_offset=np.pi/2)                
+                unity_goal_joints = unityUr5()
+                unity_goal_joints.joints = sim_goal_joints
+                self.unity_ur5_shadow_pub.publish(sim_goal_joints)
+
+                # time delay
+                if k == "pick_up" or k == "pick_down" or k == "workspace" or k == "back":
+                    delta = 0.0
+                    # self.ur5_control_msg.time = 1.0
+                    # self.ur5_control_msg.time = 1.0
+                    
+                else:
+                    delta = rospy.get_param("time_delta",default=1)
+                    
+                # ur5 real control time
+                if k == "pick_up" or k == "pick_down":
+                    self.ur5_control_msg.time = self.get_random_time(min=0.4, max=1)
+                
+                elif k == " workspace" or k == "back":
+                    self.ur5_control_msg.time = self.get_random_time(min=0.6, max=2)
+                
+                if k == "goal":  
+                    rospy.set_param("start_static",True)
+                    self.ur5_control_msg.time = self.get_random_time(min=0.9, max=2)
+                    
+                
+                if rospy.get_param("mode_id",default="") == "noproj_mode":
+                    delta = 0.0
+
+                rospy.sleep(delta)
+                
+                
+                if  k == "pick_up":
+                    rospy.sleep(0.2)
+                    rospy.set_param("start_static",False)
+                
+                self.unity_ur5_pub.publish(unity_goal_joints)
+                self.publish_ur5_movej(goal_joints=real_goal_joints)
+                
+                print(f"doing action: {k}, ur5 control time: {self.ur5_control_msg.time} and delta: {delta}")
+        return
+    
+    def set_pid_param(self,p = 1.0, i = 0.0, d = 0.0):
+        rospy.set_param("/ur5/control_params/p_gain",p)
+        rospy.set_param("/ur5/control_params/i_gain",i)
+        rospy.set_param("/ur5/control_params/d_gain",d)        
+        
     def __del__(self):
         pass
     
 if __name__ == '__main__':
     rp = ROBOT_PRIMITIVES()
-    
+    rp.set_pid_param( p = 3.0, 
+                      i = 0.35,
+                      d = 2.0
+                     )
+    rospy.sleep(1)
     while not rospy.is_shutdown():
         try:
+            print("running main loop")
+            
             # uncomment below to run experiment of ICRA
             # rp.run_thread()
             
@@ -633,8 +768,11 @@ if __name__ == '__main__':
             # rp.save_robot_goals()
             
             # testing and debugging
-            print("running main loop")
-            rp.testing_and_debug()
+            # rp.testing_and_debug()
+            
+                
+            rp.iros_experiment()
+                
             rospy.sleep(1/30)
         except Exception as e:
-            print(e)
+            print(f"Main loop error msg: {e}")
