@@ -1,0 +1,9 @@
+
+float64[] joints
+string topic
+float64 wait
+string robot_type
+---
+bool finished
+
+
