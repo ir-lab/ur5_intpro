@@ -15,10 +15,16 @@ class USER_INT:
         rospy.set_param("start_user_exp",False)
         rospy.set_param("stop_user_exp",False)
         rospy.set_param("go_home",False)
+        rospy.set_param("grasp_on",True)
+        self.grasp_flag = True
         self.user_interface = Image()
         self.goal_ids = np.array([[6,5,4,3,2,1],
                                   [12,11,10,9,8,7],
                                   [18,17,16,15,14,13]],dtype=np.uint8)
+        
+        
+        self.goal_ids_new = np.array([[6,12,18,17,16,15,14,13],
+                                      [5,4,3,2,1,11,10,9,8,7]],dtype=object)
         self.robot_goals = self.get_robot_goals()
         
         self.pattern = 255*np.ones((340,670,3),dtype=np.uint8)
@@ -33,10 +39,26 @@ class USER_INT:
         cv2.putText(self.pattern,str(goal),textloc,cv2.FONT_HERSHEY_PLAIN,2,(0,0,0),thickness=2)        
         print(f"current goal: {goal}")
         
-    def get_robot_goals(self,nums = 6):
-        flat = np.reshape(self.goal_ids,(-1))
-        return np.random.choice(flat,size=nums,replace=False)
+    def get_robot_goals(self,nums = 6, split =3):
+        # flat = np.reshape(self.goal_ids,(-1))
+        # return np.random.choice(flat,size=nums,replace=False)
         
+        robot_goals = []
+        for idx, gid in enumerate(self.goal_ids_new):
+            if idx == 0:
+                ids = np.random.choice(gid,size = (split),replace=False)         
+            if idx == 1:
+                ids = np.random.choice(gid,size = (nums-split),replace=False)
+                
+            for id in ids:
+                    robot_goals.append(id)
+        robot_goals = np.array(robot_goals).reshape(-1)
+        # robot_goals = np.array([11,13,16,12,3,17])
+        print(robot_goals)
+        # robot_goals = [float(rg) for rg in robot_goals]
+        return robot_goals
+    
+    
     def generate_pattern(self):
         self.pattern = 255*np.ones((340,670,3),dtype=np.uint8)
         rsize = 100
@@ -51,7 +73,8 @@ class USER_INT:
                     if pose == self.c_goal:
                         c_mat_idx = np.where(self.goal_ids == self.c_goal)
                         c_points, textloc = self.get_points(row=c_mat_idx[0][0],col=c_mat_idx[1][0])
-                        self.pattern = cv2.fillConvexPoly(self.pattern, points, (0,0,255))
+                        # self.pattern = cv2.fillConvexPoly(self.pattern, points, (0,0,255))
+                        self.pattern = cv2.fillConvexPoly(self.pattern, points, (255,255,255))
                         cv2.putText(self.pattern,str(self.c_goal),textloc,cv2.FONT_HERSHEY_PLAIN,2,(0,0,0),thickness=2) 
                     else:
                         # self.pattern = cv2.fillConvexPoly(self.pattern, points, (0,0,255))
@@ -75,7 +98,13 @@ class USER_INT:
     def run_experiment(self):
         try: 
             
-            print("wating for input...")
+            print("Wating for input...")
+            print("Current User Name: ", rospy.get_param("user_name"))
+            print("Current mode: ", rospy.get_param("current_mode"))
+            print("Grasp on: ",rospy.get_param("grasp_on"))
+            print("Time delta: ",rospy.get_param("time_delta")," sec.")
+            
+            print("\n")
             # cv_image = CvBridge().imgmsg_to_cv2(self.user_interface,desired_encoding="bgr8")
             # self.show_current_goal()
             self.generate_pattern()
@@ -106,7 +135,15 @@ class USER_INT:
                 rospy.set_param("new_mode",True)
                 self.robot_goals = self.get_robot_goals()
                 
-                
+            
+            if cv_key == ord('g'):
+                if rospy.get_param("grasp_on"):
+                    self.grasp_flag = False
+                else:
+                    self.grasp_flag = True
+
+            
+            rospy.set_param("grasp_on",self.grasp_flag)
         
         except Exception as e:
             print(f"Run error: {e}")
@@ -118,4 +155,4 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         rospy.set_param("robot_goals",ui.robot_goals.tolist())
         ui.run_experiment()
-        rospy.sleep(0.01)
+        rospy.sleep(1/20)
