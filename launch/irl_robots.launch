@@ -4,14 +4,15 @@
 
 <arg name="ur5_ip" default="192.168.1.103" />
 <arg name="ur5_port" default="30003" />
-<arg name="r2fg_port" default="/dev/ttyUSB0"/>
+<arg name="r2fg_port" default="/dev/ttyUSB1"/>
 
 <param name="ur5/ip" value="$(arg ur5_ip)" />
 <param name="ur5/port" value="$(arg ur5_port)" />
 <param name="r2fg/port" value="$(arg r2fg_port)" />
 
 <node name="ur5" type="ur5" pkg="irl_robots" output="screen"/>
-<!-- <node name="r2fg" type="r2fg" pkg="irl_robots" output="screen"/> -->
+<node name="r2fg" type="r2fg" pkg="irl_robots" output="screen"/>
+<!-- <node name="ros2unity" type="ros2unity.py" pkg="ur5_intpro" output="screen"/> -->
 
 <!-- <arg name="server" default="239.255.42.99"/> -->
 <arg name="server" default="192.168.1.116"/>
@@ -32,16 +33,20 @@
     </rosparam>
 </node>
 
-<include file="$(find ros_tcp_endpoint)/launch/endpoint.launch">
-      <arg name="tcp_ip" value="127.0.0.1"/>
-</include>
+<arg name="flag_ros_tcp_endpoint" default="false"/>
+<group if="$(arg flag_ros_tcp_endpoint)"> 
+      <include file="$(find ros_tcp_endpoint)/launch/endpoint.launch">
+            <arg name="tcp_ip" value="127.0.0.1"/>
+      </include>
+</group>
 
-<!-- <node pkg="tf" type="static_transform_publisher" name="opti_static_broadcaster" args="0 0 0 0 0 0 base world 20" /> -->
-<!-- <node name="intprim_framework_ros" pkg="ur5_intpro" type="optitrack_tf.py" output="screen" respawn="true" /> -->
 
-<!-- <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+<arg name="flag_rosbridge_server" default="false"/>
+<group if="$(arg flag_rosbridge_server)">
+<include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
       <arg name="address" value="10.218.101.9"/>
-</include> -->
+</include>
+</group>
 
 
 </launch>
