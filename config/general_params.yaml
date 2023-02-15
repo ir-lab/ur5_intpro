@@ -8,10 +8,10 @@ ur5:
     p_gain: 2
     i_gain: 1
     d_gain: 0.0
-    m_max_velocity: 1.57
-    m_i_max: 0.5
-    m_i_min: -0.5
-    m_max_accel: 3.14
+    m_max_velocity: 1.0
+    m_i_max: 0.1
+    m_i_min: -0.1
+    m_max_accel: 3.15
 
 # KDL params
 kdl_urdf:  'custom_ur5.urdf' # assuming file is in urdf directory
