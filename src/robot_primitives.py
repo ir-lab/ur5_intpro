@@ -610,9 +610,11 @@ class ROBOT_PRIMITIVES:
                         self.unity_ur5_shadow_pub.publish(sim_goal_joints)
                         rospy.sleep(delta)
                         self.ur5_control_msg.time = delta
-                        self.unity_ur5_pub.publish(unity_goal_joints)
-                        self.publish_ur5_movej(goal_joints=real_goal_joints)
-                        
+                        if not rospy.get_param("halt"):
+                            self.unity_ur5_pub.publish(unity_goal_joints)
+                            self.publish_ur5_movej(goal_joints=real_goal_joints)
+                        else:
+                            print("halt..........................")
                         print(f"doing action in: {k} and delta: {delta}")
     
     
@@ -736,8 +738,16 @@ class ROBOT_PRIMITIVES:
                     rospy.sleep(0.2)
                     rospy.set_param("start_static",False)
                 
+                if rospy.get_param("halt"):
+                    while rospy.get_param("halt"):
+                        rospy.sleep(0.1)  
+                        print("halt........................")
+                    
                 self.unity_ur5_pub.publish(unity_goal_joints)
                 self.publish_ur5_movej(goal_joints=real_goal_joints)
+            
+                # self.unity_ur5_pub.publish(unity_goal_joints)
+                # self.publish_ur5_movej(goal_joints=real_goal_joints)
                 
                 print(f"doing action: {k}, ur5 control time: {self.ur5_control_msg.time} and delta: {delta}")
         return

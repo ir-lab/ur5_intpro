@@ -16,6 +16,7 @@ class USER_INT:
         rospy.set_param("stop_user_exp",False)
         rospy.set_param("go_home",False)
         rospy.set_param("grasp_on",True)
+        rospy.set_param("halt",False)
         self.grasp_flag = True
         self.user_interface = Image()
         self.goal_ids = np.array([[6,5,4,3,2,1],
@@ -103,7 +104,7 @@ class USER_INT:
             print("Current mode: ", rospy.get_param("current_mode"))
             print("Grasp on: ",rospy.get_param("grasp_on"))
             print("Time delta: ",rospy.get_param("time_delta")," sec.")
-            
+            print("Halt: ",rospy.get_param("halt"))
             print("\n")
             # cv_image = CvBridge().imgmsg_to_cv2(self.user_interface,desired_encoding="bgr8")
             # self.show_current_goal()
@@ -142,6 +143,11 @@ class USER_INT:
                 else:
                     self.grasp_flag = True
 
+            if cv_key == ord('s'):
+                if rospy.get_param("halt"):
+                    rospy.set_param("halt",False)
+                else:
+                     rospy.set_param("halt",True)
             
             rospy.set_param("grasp_on",self.grasp_flag)
         

@@ -7,6 +7,7 @@ from sensor_msgs.msg import Imu
 from geometry_msgs.msg import PoseStamped
 from ur5_intpro.msg import Ur5Joints as UnityJoints
 from irl_robots.msg import *
+from sensor_msgs.msg import Joy
 from transforms3d.euler import quat2euler, mat2euler
 import time
 import json
@@ -15,13 +16,13 @@ from typing import Any
 import subprocess
 from robot_control import *
 from threading import Thread
+from std_msgs.msg import Float64
 
-
-# class MotionTest(Robot_Control):
-class MotionTest():
+class MotionTest(Robot_Control):
+# class MotionTest():
     
     def __init__(self) -> None:
-        # super().__init__()      
+        super().__init__()      
         rospy.init_node("motion_planner")
         self.test_traj_dir = "/share/all_hd_data/101-240_dataset/"
         self.ur5Joints = ur5Joints()
@@ -30,6 +31,18 @@ class MotionTest():
         self.r2fg_msg        = gSimpleControl()
         self.r2fg_msg.force = 255
         self.r2fg_msg.speed = 255
+        self.unity_r2fg = Float64()
+        self.unity_r2fg_max = 45.0
+        self.r2fg_max = 255
+        self.joy_msg =  Joy()
+        
+        self.ur5_max_radius = 0.84 # meters
+        self.z_min = 0.00
+        self.z_max = 0.60
+        self.y_min = 0.10
+        self.y_max = 0.80
+        self.d_xyz_max = 0.2
+         
         self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",  default="movej") 
         self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",     default=np.pi/2)
         self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",      default=np.pi/2) 
@@ -38,15 +51,26 @@ class MotionTest():
 
         rospy.Subscriber("/ur5/joints",ur5Joints,self.ur5_joints_callback)
         rospy.Subscriber("unity_ur5/joints",UnityJoints,self.unityur5_joints_callback)
+        rospy.Subscriber("/robotiq/joint",Float64,self.robotiq_callback)
+        rospy.Subscriber("/joy",Joy,self.joy_callback)
+        
         self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
+        self.r2fg_publisher = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=1)
         self.control_freq = 50.0
         
-    def ur5_joints_callback(self,msg) -> None:
+    def ur5_joints_callback(self,msg:ur5Joints) -> None:
         self.ur5Joints = msg
 
-    def unityur5_joints_callback(self,msg) -> None:
+    def unityur5_joints_callback(self,msg:UnityJoints) -> None:
         self.unityJoints = msg
- 
+    
+    def robotiq_callback(self,msg:Float64) -> None:
+        self.unity_r2fg = msg
+        # print(self.unity_r2fg)
+
+    def joy_callback(self,msg:Joy) -> None:
+        self.joy_msg = msg
+        
     def set_pid_param(self, p:float = 1.0, i:float = 0.0, d:float = 0.0, sleep:float = 0.5) -> None:
         rospy.set_param("/ur5/control_params/p_gain",float(p))
         rospy.set_param("/ur5/control_params/i_gain",float(i))
@@ -104,7 +128,7 @@ class MotionTest():
         self.ur5_control_msg.gain = gain
         
         
-    def stopj_msg(self, accel = np.pi/4) -> None:
+    def stopj_msg(self, accel:float = np.pi/4) -> None:
         self.ur5_control_msg.command = "stopj"
         self.ur5_control_msg.time = 0.0
         self.ur5_control_msg.velocity = 0.0
@@ -145,6 +169,13 @@ class MotionTest():
         with open(filename, "r") as fh:
             data = json.load(fh)
         return data   
+    
+    def check_thresh(self, var, var_max, var_min) -> float:
+        if var > var_max:
+            var = var_max
+        if var < var_min:
+            var = var_min
+        return var
        
     def test_random_traj(self, random_traj:bool=False, use_speedj=False, use_servoj = True, use_movej=True,  use_speedl=False) -> None:
         trajectory, tool_trajectory  = self.get_random_traj()
@@ -164,7 +195,7 @@ class MotionTest():
                     self.real_ur5_joint_publisher.publish(self.ur5_control_msg) 
                 
                 elif use_servoj:
-                    self.servoj_msg(goal_joints=trajectory[counter], t=0.05, lookahead=0.1, gain=500)
+                    self.servoj_msg(goal_joints=trajectory[counter], t=0.05, lookahead=0.01, gain=200)
                     # self.servoj_msg(goal_joints=trajectory[counter], t=(1/self.control_freq), lookahead=0.04, gain=100)
                     self.real_ur5_joint_publisher.publish(self.ur5_control_msg) 
                     
@@ -189,41 +220,93 @@ class MotionTest():
             else:
                 counter += 1
     
-    def start_rosbag(self,rosbag_path="/home/slocal/Downloads/2023-02-13-18-12-51.bag"):
-        command = ['rosbag', 'play', '-r', '1.0', rosbag_path]
-        subprocess.run(command)
+    # def start_rosbag(self,rosbag_path="/home/slocal/Downloads/2023-02-13-18-12-51.bag"):
+    #     command = ['rosbag', 'play', '-r', '1.0', rosbag_path]
+    #     subprocess.run(command)
     
-    def test_rosbag_traj(self):
-        counter  = 0 
-        prev_step  = 0
-        # th = Thread(target=self.start_rosbag,args=())
-        # th.start()
+    # def test_rosbag_traj(self):
+    #     counter  = 0 
+    #     prev_step  = 0
+    #     # th = Thread(target=self.start_rosbag,args=())
+    #     # th.start()
         
+    #     while not rospy.is_shutdown():
+    #         goal_joints = list(self.unityJoints.joints)
+    #         # goal_joints[-1] = 0.0
+    #         if counter == -1:
+    #             self.movej_msg(goal_joints=home_joints.get("rad"), t= 5.0)
+    #             self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+    #             rospy.sleep(5.0)
+    #             prev_step = counter
+                
+    #         else:
+    #             self.servoj_msg(goal_joints=goal_joints, t=0.1, lookahead=0.2, gain=0)
+                
+    #             # self.stopj_msg(accel=2.0)
+    #             # self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+    #             # rospy.sleep(1/self.control_freq)
+    #         counter += 1
+
+    def is_safe(self, curr_goint:list, goal_joints:list) -> bool:
+        tf_mat_g = self.get_fk_sol(goal_joints) 
+        tf_mat_c = self.get_fk_sol(curr_goint) 
+        d_xyz = np.linalg.norm(tf_mat_g[0:3,-1] - tf_mat_c[0:3,-1])
+        ur5_radius = np.linalg.norm(tf_mat_c[0:3,-1])
+        # print(f"x = [{tf_mat_c[0,-1]}]\ny = [{tf_mat_c[1,-1]}]\nz = [{tf_mat_c[2,-1]}]\n")
+        # print(f"radius = {ur5_radius}")
+        if ur5_radius > self.ur5_max_radius:
+            print(f"Reached max radius: [{ur5_radius}]..... Halting.........")
+            return False
+        if tf_mat_c[2,-1] < self.z_min or tf_mat_c[2,-1] > self.z_max:
+            print(f"Reached Z limits: [{tf_mat_c[2,-1]}]..... Halting.........")
+            return False
+        if tf_mat_c[1,-1] < self.y_min or tf_mat_c[1,-1] > self.y_max:
+            print(f"Reached Y limits: [{tf_mat_c[1,-1]}]..... Halting.........")
+            return False
+        if d_xyz > self.d_xyz_max:
+            print(f"Reached max delta xyz: [{d_xyz}]  limits..... Halting.....")
+        
+            return False
+        
+        return True
+        
+    def listen_unity_traj(self) -> None:
+        start = True
         while not rospy.is_shutdown():
-            goal_joints = list(self.unityJoints.joints)
-            # goal_joints[-1] = 0.0
-            if counter == -1:
-                self.movej_msg(goal_joints=home_joints.get("rad"), t= 5.0)
+            if start:
+                self.movej_msg(goal_joints=home_joints.get("rad"), t= 2.5)
                 self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-                rospy.sleep(5.0)
-                prev_step = counter
+                start = False
+                self.r2fg_msg.position = 0
+                self.r2fg_publisher.publish(self.r2fg_msg)
+                print("Going to home position........")
+                rospy.sleep(2.5)
                 
-            else:
-                # self.speedj_msg(goal_joints=goal_joints, t=(1/self.control_freq))
-                # self.real_ur5_joint_publisher.publish(self.ur5_control_msg) 
-                # print(f"sending goal joints: {goal_joints}")
-                self.servoj_msg(goal_joints=goal_joints, t=0.1, lookahead=0.2, gain=500)
-                # self.servoj_msg(goal_joints=trajectory[counter], t=(1/self.control_freq), lookahead=0.04, gain=100)
-                self.real_ur5_joint_publisher.publish(self.ur5_control_msg) 
-                rospy.sleep(1/self.control_freq)
-                
-                # self.stopj_msg(accel=2.0)
-                # self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-                # rospy.sleep(1/self.control_freq)
-            counter += 1
+            goal_joints = list(self.unityJoints.joints)
+            curr_joints = list(self.ur5Joints.positions)            
+            if not self.is_safe(curr_goint=curr_joints, goal_joints=goal_joints):
+                # exit()
+                self.stopj_msg(accel=np.pi/4.0)
+                self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+                rospy.sleep(1/self.control_freq)                
+                continue
+
+            r2fg = int((self.unity_r2fg.data / self.unity_r2fg_max) * self.r2fg_max)
+            if r2fg >= 250:
+                r2fg = 155
+            elif r2fg < 250:
+                r2fg = 0
+            self.r2fg_msg.position = r2fg
+            # self.r2fg_msg.position = 155 if r2fg >= 100 else 0
+            self.r2fg_publisher.publish(self.r2fg_msg)
+            self.servoj_msg(goal_joints=goal_joints, t=0.1, lookahead=0.12, gain=250)
+            self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+            print(f"Gripper value: {r2fg}")
+            print(f"Goal joints: {goal_joints}\n")
+            rospy.sleep(1/self.control_freq)
+        return
         
-        
-    
+            
 if __name__ == "__main__":
     
     mt = MotionTest()
@@ -235,9 +318,9 @@ if __name__ == "__main__":
     
     # for i in range(10):
     #     mt.test_random_traj()
-    mt.test_rosbag_traj()
+    # mt.test_rosbag_traj()
     # mt.test_random_traj(use_speedj=False, use_speedl=True)
-    
+    mt.listen_unity_traj()
 
 
 

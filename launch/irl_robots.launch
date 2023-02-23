@@ -14,7 +14,8 @@
 <node name="r2fg" type="r2fg" pkg="irl_robots" output="screen"/>
 <!-- <node name="ros2unity" type="ros2unity.py" pkg="ur5_intpro" output="screen"/> -->
 
-<!-- <arg name="server" default="239.255.42.99"/> -->
+<arg name="flag_vrpn" default="false"/>
+<group if="$(arg flag_vrpn)"> 
 <arg name="server" default="192.168.1.116"/>
 <node pkg="vrpn_client_ros" type="vrpn_client_node" name="vrpn_client_node" output="screen">
     <rosparam subst_value="true">
@@ -32,6 +33,7 @@
     #- SecondTracker
     </rosparam>
 </node>
+</group>
 
 <arg name="flag_ros_tcp_endpoint" default="false"/>
 <group if="$(arg flag_ros_tcp_endpoint)"> 

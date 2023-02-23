@@ -85,9 +85,9 @@ class Robot_Control:
                                                         leaf_link = "fake_end_effector_link")
     
 
-    def setup_kdl(self,base_link,leaf_link) -> tuple:
+    def setup_kdl(self,base_link,leaf_link, urdf_file = "custom_ur5.urdf") -> tuple:
         """ one time setting up of kinematic chain using kdl"""
-        urdf_path = os.path.join(rospkg.RosPack().get_path("ur5_intpro"),"urdf","custom_ur5.urdf")
+        urdf_path = os.path.join(rospkg.RosPack().get_path("ur5_intpro"),"urdf",urdf_file)
         kdl_tree  = kdl_parser_py.urdf.treeFromFile(urdf_path)[1]
         kdl_chain = kdl_tree.getChain(base_link,leaf_link) 
         ik_solver = KDL.ChainIkSolverPos_LMA(kdl_chain, 1e-8 ,1000, 1e-6)
