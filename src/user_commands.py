@@ -55,7 +55,10 @@ class USER_INT:
                     robot_goals.append(id)
         robot_goals = np.array(robot_goals).reshape(-1)
         # robot_goals = np.array([11,13,16,12,3,17])
+        # robot_goals = np.array([12,7,16,3,8,5])
+        robot_goals = np.array([18,14,17,3,8,5])
         print(robot_goals)
+        # robot_goals = robot_goals[:3]
         # robot_goals = [float(rg) for rg in robot_goals]
         return robot_goals
     
@@ -105,11 +108,12 @@ class USER_INT:
             print("Grasp on: ",rospy.get_param("grasp_on"))
             print("Time delta: ",rospy.get_param("time_delta")," sec.")
             print("Halt: ",rospy.get_param("halt"))
+            print("Robot Goals: ",self.robot_goals)
             print("\n")
             # cv_image = CvBridge().imgmsg_to_cv2(self.user_interface,desired_encoding="bgr8")
             # self.show_current_goal()
             self.generate_pattern()
-            cv2.imshow("Experiment",cv2.resize(self.pattern,(1000,500))) 
+            cv2.imshow("Experiment",cv2.resize(self.pattern,(1800,1000))) 
             cv_key = cv2.waitKey(1)
             if cv_key == 32: # space
                 print("Stopping experiment")

@@ -59,6 +59,8 @@ add_message_files(
   Ur5Joints.msg
   CamPose.msg
   Robotiq.msg
+  Smartwatch.msg
+  TeleopPose.msg
   # Message2.msg
 )
 

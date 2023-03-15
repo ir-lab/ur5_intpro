@@ -6,6 +6,7 @@ from std_msgs.msg import Float64MultiArray
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import PoseStamped
 from ur5_intpro.msg import Ur5Joints as UnityJoints
+from ur5_intpro.msg import TeleopPose
 from irl_robots.msg import *
 from sensor_msgs.msg import Joy
 from transforms3d.euler import quat2euler, mat2euler
@@ -35,13 +36,14 @@ class MotionTest(Robot_Control):
         self.unity_r2fg_max = 45.0
         self.r2fg_max = 255
         self.joy_msg =  Joy()
+        self.obj_pose =  TeleopPose()
         
         self.ur5_max_radius = 0.84 # meters
         self.z_min = 0.00
         self.z_max = 0.60
         self.y_min = 0.10
         self.y_max = 0.80
-        self.d_xyz_max = 0.2
+        self.d_xyz_max = 0.30
          
         self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",  default="movej") 
         self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",     default=np.pi/2)
@@ -53,6 +55,7 @@ class MotionTest(Robot_Control):
         rospy.Subscriber("unity_ur5/joints",UnityJoints,self.unityur5_joints_callback)
         rospy.Subscriber("/robotiq/joint",Float64,self.robotiq_callback)
         rospy.Subscriber("/joy",Joy,self.joy_callback)
+        rospy.Subscriber("/obj_pose",TeleopPose,self.objpose_callback)
         
         self.real_ur5_joint_publisher = rospy.Publisher("/ur5/control",ur5Control,queue_size=10)
         self.r2fg_publisher = rospy.Publisher("/r2fg/simplecontrol",gSimpleControl,queue_size=1)
@@ -70,6 +73,9 @@ class MotionTest(Robot_Control):
 
     def joy_callback(self,msg:Joy) -> None:
         self.joy_msg = msg
+    
+    def objpose_callback(self,msg:TeleopPose) -> None:
+        self.obj_pose = msg
         
     def set_pid_param(self, p:float = 1.0, i:float = 0.0, d:float = 0.0, sleep:float = 0.5) -> None:
         rospy.set_param("/ur5/control_params/p_gain",float(p))
@@ -251,7 +257,7 @@ class MotionTest(Robot_Control):
         tf_mat_g = self.get_fk_sol(goal_joints) 
         tf_mat_c = self.get_fk_sol(curr_goint) 
         d_xyz = np.linalg.norm(tf_mat_g[0:3,-1] - tf_mat_c[0:3,-1])
-        ur5_radius = np.linalg.norm(tf_mat_c[0:3,-1])
+        ur5_radius = np.linalg.norm(tf_mat_g[0:3,-1])
         # print(f"x = [{tf_mat_c[0,-1]}]\ny = [{tf_mat_c[1,-1]}]\nz = [{tf_mat_c[2,-1]}]\n")
         # print(f"radius = {ur5_radius}")
         if ur5_radius > self.ur5_max_radius:
@@ -305,6 +311,54 @@ class MotionTest(Robot_Control):
             print(f"Goal joints: {goal_joints}\n")
             rospy.sleep(1/self.control_freq)
         return
+    
+
+    def listen_cart_traj(self) -> None:
+        start = True
+        while not rospy.is_shutdown():
+            if start:
+                self.movej_msg(goal_joints=home_joints.get("rad"), t= 2.5)
+                self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+                start = False
+                self.r2fg_msg.position = 0
+                self.r2fg_publisher.publish(self.r2fg_msg)
+                print("Going to home position........")
+                rospy.sleep(2.5)
+                
+            
+            curr_joints = list(self.ur5Joints.positions)   
+            x = self.obj_pose.x + 0.025
+            y = self.obj_pose.z - 0.15
+            # z =  0.1
+            if self.obj_pose.y < 0.1:
+                z = 0.1
+            else:
+                z =  self.obj_pose.y -0.1
+            # z = (self.obj_pose.y - 0.35) if self.obj_pose.y > 0.1 else 0.1
+            
+            goal_joints = self.get_ik_sol(curr_joints, [x,y,z], [0,np.pi/2.0,-np.pi/2.0])
+            
+            if not self.is_safe(curr_goint=curr_joints, goal_joints=goal_joints):
+                # exit()
+                self.stopj_msg(accel=np.pi/4.0)
+                self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+                rospy.sleep(1/self.control_freq)                
+                continue
+
+            # r2fg = int((self.unity_r2fg.data / self.unity_r2fg_max) * self.r2fg_max)
+            # if r2fg >= 250:
+            #     r2fg = 155
+            # elif r2fg < 250:
+            #     r2fg = 0
+            # self.r2fg_msg.position = r2fg
+            # # self.r2fg_msg.position = 155 if r2fg >= 100 else 0
+            # self.r2fg_publisher.publish(self.r2fg_msg)
+            self.servoj_msg(goal_joints=goal_joints, t=0.1, lookahead=0.12, gain=250)
+            self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+            # print(f"Gripper value: {r2fg}")
+            # print(f"Goal joints: {goal_joints}\n")
+            rospy.sleep(1/self.control_freq)
+        return
         
             
 if __name__ == "__main__":
@@ -320,8 +374,8 @@ if __name__ == "__main__":
     #     mt.test_random_traj()
     # mt.test_rosbag_traj()
     # mt.test_random_traj(use_speedj=False, use_speedl=True)
-    mt.listen_unity_traj()
-
+    # mt.listen_unity_traj()
+    mt.listen_cart_traj()
 
 
 

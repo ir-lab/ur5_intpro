@@ -10,9 +10,13 @@
 <param name="ur5/port" value="$(arg ur5_port)" />
 <param name="r2fg/port" value="$(arg r2fg_port)" /> -->
 
+<arg name="flag_ur5" default="false"/>
+<group if="$(arg flag_ur5)">
 <node name="ur5" type="ur5" pkg="irl_robots" output="screen"/>
 <node name="r2fg" type="r2fg" pkg="irl_robots" output="screen"/>
-<!-- <node name="ros2unity" type="ros2unity.py" pkg="ur5_intpro" output="screen"/> -->
+</group>
+
+<node name="ros2unity" type="ros2unity.py" pkg="ur5_intpro" output="screen"/>
 
 <arg name="flag_vrpn" default="false"/>
 <group if="$(arg flag_vrpn)"> 

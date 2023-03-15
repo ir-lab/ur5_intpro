@@ -546,9 +546,11 @@ class ROBOT_PRIMITIVES:
             return
         all_goals = self.generate_goals()
         self.robot_goals = rospy.get_param("robot_goals",default=list())
+        self.robot_goals = self.robot_goals[:3]
+        
         print("robot_goal ids: ",self.robot_goals)
-        if len(self.robot_goals) != 6:
-            return
+        # if len(self.robot_goals) != 6:
+        #     return
         home_joints = [115.55, -105.80, 99.89, -84.24, -89.98, 25.42]
         home_joints = [np.deg2rad(jh) for jh in home_joints]
         for _ in range(100):
@@ -619,6 +621,7 @@ class ROBOT_PRIMITIVES:
     
     
     def move_to_robot_goals(self):
+        # self.robot_goals = self.robot_goals[:3]
         for g in self.robot_goals:
             print("Moving to robot goal id: ",g)
             rg = self.goals.get(g)
