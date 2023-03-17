@@ -44,7 +44,9 @@ class MotionTest(Robot_Control):
         self.y_min = 0.10
         self.y_max = 0.80
         self.d_xyz_max = 0.30
-         
+        self.timeout_maxiter = 10
+        self.timeout_flag = False
+        
         self.ur5_control_msg.command      = rospy.get_param("irl_robot_command",  default="movej") 
         self.ur5_control_msg.acceleration = rospy.get_param("irl_robot_accl",     default=np.pi/2)
         self.ur5_control_msg.velocity     = rospy.get_param("irl_robot_vel",      default=np.pi/2) 
@@ -226,55 +228,54 @@ class MotionTest(Robot_Control):
             else:
                 counter += 1
     
-    # def start_rosbag(self,rosbag_path="/home/slocal/Downloads/2023-02-13-18-12-51.bag"):
-    #     command = ['rosbag', 'play', '-r', '1.0', rosbag_path]
-    #     subprocess.run(command)
+    def start_rosbag(self,rosbag_path="/home/slocal/Downloads/2023-02-13-18-12-51.bag"):
+        command = ['rosbag', 'play', '-r', '1.0', rosbag_path]
+        subprocess.run(command)
     
-    # def test_rosbag_traj(self):
-    #     counter  = 0 
-    #     prev_step  = 0
-    #     # th = Thread(target=self.start_rosbag,args=())
-    #     # th.start()
+    def test_rosbag_traj(self):
+        counter  = 0 
+        prev_step  = 0
+        # th = Thread(target=self.start_rosbag,args=())
+        # th.start()
         
-    #     while not rospy.is_shutdown():
-    #         goal_joints = list(self.unityJoints.joints)
-    #         # goal_joints[-1] = 0.0
-    #         if counter == -1:
-    #             self.movej_msg(goal_joints=home_joints.get("rad"), t= 5.0)
-    #             self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-    #             rospy.sleep(5.0)
-    #             prev_step = counter
+        while not rospy.is_shutdown():
+            goal_joints = list(self.unityJoints.joints)
+            # goal_joints[-1] = 0.0
+            if counter == -1:
+                self.movej_msg(goal_joints=home_joints.get("rad"), t= 5.0)
+                self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+                rospy.sleep(5.0)
+                prev_step = counter
                 
-    #         else:
-    #             self.servoj_msg(goal_joints=goal_joints, t=0.1, lookahead=0.2, gain=0)
+            else:
+                self.servoj_msg(goal_joints=goal_joints, t=0.1, lookahead=0.2, gain=0)
                 
-    #             # self.stopj_msg(accel=2.0)
-    #             # self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-    #             # rospy.sleep(1/self.control_freq)
-    #         counter += 1
+                # self.stopj_msg(accel=2.0)
+                # self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
+                # rospy.sleep(1/self.control_freq)
+            counter += 1
 
     def is_safe(self, curr_goint:list, goal_joints:list) -> bool:
         tf_mat_g = self.get_fk_sol(goal_joints) 
         tf_mat_c = self.get_fk_sol(curr_goint) 
         d_xyz = np.linalg.norm(tf_mat_g[0:3,-1] - tf_mat_c[0:3,-1])
-        ur5_radius = np.linalg.norm(tf_mat_g[0:3,-1])
+        ur5_radius = np.linalg.norm(tf_mat_c[0:3,-1])
         # print(f"x = [{tf_mat_c[0,-1]}]\ny = [{tf_mat_c[1,-1]}]\nz = [{tf_mat_c[2,-1]}]\n")
-        # print(f"radius = {ur5_radius}")
         if ur5_radius > self.ur5_max_radius:
-            print(f"Reached max radius: [{ur5_radius}]..... Halting.........")
+            print(f"Reached max radius: [{ur5_radius}]..... Halting.....")
             return False
-        if tf_mat_c[2,-1] < self.z_min or tf_mat_c[2,-1] > self.z_max:
-            print(f"Reached Z limits: [{tf_mat_c[2,-1]}]..... Halting.........")
+        elif tf_mat_c[2,-1] < self.z_min or tf_mat_c[2,-1] > self.z_max:
+            print(f"Reached Z limits: [{tf_mat_c[2,-1]}]..... Halting.....")
             return False
-        if tf_mat_c[1,-1] < self.y_min or tf_mat_c[1,-1] > self.y_max:
-            print(f"Reached Y limits: [{tf_mat_c[1,-1]}]..... Halting.........")
+        elif tf_mat_c[1,-1] < self.y_min or tf_mat_c[1,-1] > self.y_max:
+            print(f"Reached Y limits: [{tf_mat_c[1,-1]}]..... Halting.....")
             return False
-        if d_xyz > self.d_xyz_max:
-            print(f"Reached max delta xyz: [{d_xyz}]  limits..... Halting.....")
+        elif d_xyz > self.d_xyz_max:
+            print(f"Reached max delta xyz limits: [{d_xyz}]..... Halting.....")
+            return False
+        else:
+            return True
         
-            return False
-        
-        return True
         
     def listen_unity_traj(self) -> None:
         start = True
@@ -315,6 +316,7 @@ class MotionTest(Robot_Control):
 
     def listen_cart_traj(self) -> None:
         start = True
+        timeout_counter  = 0
         while not rospy.is_shutdown():
             if start:
                 self.movej_msg(goal_joints=home_joints.get("rad"), t= 2.5)
@@ -325,38 +327,44 @@ class MotionTest(Robot_Control):
                 print("Going to home position........")
                 rospy.sleep(2.5)
                 
+            if self.timeout_flag:
+                timeout_counter+= 1
             
+            
+            # get current joint angles and goal xyz, rpy
             curr_joints = list(self.ur5Joints.positions)   
             x = self.obj_pose.x + 0.025
             y = self.obj_pose.z - 0.15
-            # z =  0.1
             if self.obj_pose.y < 0.1:
                 z = 0.1
             else:
                 z =  self.obj_pose.y -0.1
-            # z = (self.obj_pose.y - 0.35) if self.obj_pose.y > 0.1 else 0.1
             
             goal_joints = self.get_ik_sol(curr_joints, [x,y,z], [0,np.pi/2.0,-np.pi/2.0])
             
+            
+            
             if not self.is_safe(curr_goint=curr_joints, goal_joints=goal_joints):
-                # exit()
                 self.stopj_msg(accel=np.pi/4.0)
                 self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
                 rospy.sleep(1/self.control_freq)                
+                self.timeout_flag = True
+                
                 continue
+                # if timeout_counter <= self.timeout_maxiter:
+                #     continue
+                # else:
+                #     timeout_counter = 0
+                #     self.timeout_flag = False
 
-            # r2fg = int((self.unity_r2fg.data / self.unity_r2fg_max) * self.r2fg_max)
-            # if r2fg >= 250:
-            #     r2fg = 155
-            # elif r2fg < 250:
-            #     r2fg = 0
-            # self.r2fg_msg.position = r2fg
+            
             # # self.r2fg_msg.position = 155 if r2fg >= 100 else 0
             # self.r2fg_publisher.publish(self.r2fg_msg)
+            
+            
+            
             self.servoj_msg(goal_joints=goal_joints, t=0.1, lookahead=0.12, gain=250)
             self.real_ur5_joint_publisher.publish(self.ur5_control_msg)
-            # print(f"Gripper value: {r2fg}")
-            # print(f"Goal joints: {goal_joints}\n")
             rospy.sleep(1/self.control_freq)
         return
         

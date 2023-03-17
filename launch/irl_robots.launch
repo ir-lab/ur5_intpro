@@ -17,6 +17,7 @@
 </group>
 
 <node name="ros2unity" type="ros2unity.py" pkg="ur5_intpro" output="screen"/>
+<!-- <node name="spacemouse_teleop" type="spacemouse_teleop.py" pkg="ur5_intpro" output="screen"/> -->
 
 <arg name="flag_vrpn" default="false"/>
 <group if="$(arg flag_vrpn)"> 

@@ -61,6 +61,9 @@ add_message_files(
   Robotiq.msg
   Smartwatch.msg
   TeleopPose.msg
+  TeleopDeltaPose.msg
+  Spacemouse.msg
+  Primitive.msg
   # Message2.msg
 )
 
