@@ -338,7 +338,8 @@ class MotionTest(Robot_Control):
             if self.obj_pose.y < 0.1:
                 z = 0.1
             else:
-                z =  self.obj_pose.y -0.1
+                z =  self.obj_pose.y
+            
             
             goal_joints = self.get_ik_sol(curr_joints, [x,y,z], [0,np.pi/2.0,-np.pi/2.0])
             
