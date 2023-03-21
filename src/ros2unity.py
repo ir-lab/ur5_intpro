@@ -72,8 +72,8 @@ class ROS2Unity:
         image = cv2.putText(image, primitive, (110,200),
                             cv2.FONT_HERSHEY_PLAIN,
                             5, (0,0,255), 4)
-        cv2.imshow("primitive", image)
-        cv2.waitKey(1)
+        # cv2.imshow("primitive", image)
+        # cv2.waitKey(1)
         
     def pov_callback(self,msg:PoseStamped):
         self.pov_pose[0]= msg.pose.position.x
@@ -122,6 +122,7 @@ class ROS2Unity:
     
     def unnormalizer_smarwatchdata(self,xyz:list):
         x,y,z = (*xyz,)
+        y *= 1.2
         # x = -(self.unity_xmax-self.unity_xmin)  * x * 0.8
         # y = (self.unity_ymax-self.unity_ymin)   * y * 1.5
         # z = -(self.unity_zmax-self.unity_zmin)  * z * 0.5
